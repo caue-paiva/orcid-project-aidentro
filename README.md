@@ -7,11 +7,11 @@ Documentação para a realização do Trabalho da Disciplina SCC0130 - Engenhari
 ### 1.1. Grupos
 
 O trabalho deverá ser feito em grupos de até 5 alunos. Os alunos de um mesmo grupo devem ser, preferencialmente, da mesma turma (horário).
-Cauê Paiva Lira - 14675416
-Jesus Sena Fernandes - 12697470
-Letícia Raddatz Jönck - 14589066
-Luiz Felipe Diniz Costa - 13782032
-Pedro Louro Fernandes - 13672446
+- Cauê Paiva Lira - 14675416
+- Jesus Sena Fernandes - 12697470
+- Letícia Raddatz Jönck - 14589066
+- Luiz Felipe Diniz Costa - 13782032
+- Pedro Louro Fernandes - 13672446
 
 ### 1.2. Entrega
 
