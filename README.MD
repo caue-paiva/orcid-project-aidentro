@@ -12,12 +12,12 @@ Nosso objetivo é desenvolver uma aplicação baseada na [API pública do ORCID]
 | `docs/`                    | Documentação do projeto: entrevistas, requisitos, modelos, diagramas e testes. |
 | `src/`                     | Código-fonte do sistema, com separação entre `backend/` e `frontend/`. |
 | `reference-material/`      | Material inicial fornecido pela monitoria: API.md, exemplos de requisição e base da API. |
-
+| `scripts`                  | Scripts usados ao decorrer do projeto. |
 
 ## 📌 Organização do Trabalho
 
 - Todo o trabalho será versionado e documentado neste repositório.
-- Utilizamos **Issues e Pull Requests** para controlar tarefas, revisões e entregas.
+- Utilizamos **Issues, Pull Requests, Projects e Insights** para controlar tarefas, revisões e entregas.
 - A branch principal de desenvolvimento é `dev`, e a branch `main` contém versões estáveis e demonstráveis.
 - Diagramas, atas e outros documentos podem ser acessados dentro de `docs/`, organizados por tema.
 
