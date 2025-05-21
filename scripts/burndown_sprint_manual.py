@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 burndown_sprint1_manual.py
 
@@ -14,16 +13,17 @@ import os
 
 # ───────────── Configuração das Issues ─────────────
 issues = [
-    {"title": "Diagrama de componentes",         "planned_end": "2025-05-20", "done_at": None},
-    {"title": "Modelo de dados ORCID",           "planned_end": "2025-05-20", "done_at": None},
-    {"title": "Escrever 6 casos de uso",         "planned_end": "2025-05-21", "done_at": None},
+    {"title": "Diagrama de componentes",         "planned_end": "2025-05-20", "done_at": "2025-05-19"},
+    {"title": "Modelo de dados ORCID",           "planned_end": "2025-05-20", "done_at": "2025-05-20"},
+    {"title": "Escrever 6 casos de uso",         "planned_end": "2025-05-21", "done_at": "2025-05-21"},
     {"title": "Definir 6 casos de teste",        "planned_end": "2025-05-21", "done_at": "2025-05-18"},
-    {"title": "Protótipo de funcionalidade de busca", "planned_end": "2025-05-22", "done_at": None},
-    {"title": "Protótipo de visualizações",      "planned_end": "2025-05-23", "done_at": None},
-    {"title": "Projetar esquema da base de dados","planned_end": "2025-05-23", "done_at": None},
-    {"title": "Prototipagem de UI",              "planned_end": "2025-05-24", "done_at": None},
+    {"title": "Protótipo de funcionalidade de busca", "planned_end": "2025-05-22", "done_at": "2025-05-20"},
+    {"title": "Protótipo de visualizações",      "planned_end": "2025-05-23", "done_at": "2025-05-21"},
+    {"title": "Projetar esquema da base de dados","planned_end": "2025-05-23", "done_at": "2025-05-20"},
+    {"title": "Prototipagem de UI",              "planned_end": "2025-05-24", "done_at": "2025-05-21"},
     {"title": "Project Board & burndown",        "planned_end": "2025-05-19", "done_at": "2025-05-19"},
 ]
+
 
 # ───────────── Datas da Sprint ─────────────
 start = dt.date(2025, 5, 19)
