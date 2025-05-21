@@ -1,0 +1,16 @@
+# Responsáveis pela documentação
+/docs/requirements/    @caue-paiva @lejonck
+/docs/architecture/    @caue-paiva @lfelipediniz
+/docs/use_cases/       @caue-paiva @Peloro
+/docs/interviews/      @caue-paiva @SenaJesus
+/docs/tests/           @caue-paiva @Peloro
+
+# Scripts e automações
+/scripts/              @caue-paiva @SenaJesus
+
+# Material de referência e exemplos de API
+/reference-material/basic-api/  @caue-paiva
+
+# Código-fonte da aplicação
+/src/frontend/         @SenaJesus @Peloro
+/src/backend/          @lejonck @lfelipediniz
