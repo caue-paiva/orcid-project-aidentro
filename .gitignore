@@ -1,0 +1,41 @@
+# Ambiente virtual
+venv/
+ENV/
+env/
+.venv/
+
+# Arquivo de variáveis de ambiente
+.env
+
+# Arquivos de banco de dados SQLite (não precisa, mas por padrão)
+*.sqlite3
+
+# Arquivos de cache do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Configurações de IDEs
+.vscode/
+.idea/
+*.swp
+
+# Arquivos compilados
+*.pyc
+*.pyo
+
+# Arquivos de log
+*.log
+
+# Diretórios de uploads (se tiver)
+media/
+staticfiles/
+
+# Arquivos de migração indesejados (caso use uma pasta de backup)
+**/migrations/*.pyc
+**/migrations/*.pyo
+**/migrations/__pycache__/
+
+# Arquivos do sistema
+.DS_Store
+Thumbs.db
