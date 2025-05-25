@@ -39,3 +39,6 @@ staticfiles/
 # Arquivos do sistema
 .DS_Store
 Thumbs.db
+
+# Chaves e segredos
+/keys
