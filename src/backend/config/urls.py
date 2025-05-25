@@ -16,7 +16,12 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from oauth.oauth_views import oauth_authorize, oauth_callback, oauth_status
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    # OAuth endpoints
+    path('oauth/authorize/', oauth_authorize, name='oauth_authorize'),
+    path('oauth/callback/', oauth_callback, name='oauth_callback'),
+    path('oauth/status/', oauth_status, name='oauth_status'),
 ]
