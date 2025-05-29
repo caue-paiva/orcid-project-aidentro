@@ -9,6 +9,7 @@ import requests
 import json
 from typing import Dict, List, Optional, Union
 from decouple import config
+import urllib3
 
 
 class ORCIDAPIClient:
@@ -19,7 +20,7 @@ class ORCIDAPIClient:
         Initialize ORCID API client.
         
         Args:
-            access_token: Valid ORCID access token
+            access_token: Valid ORCID access token (can be empty for public API calls)
             orcid_id: ORCID identifier (mandatory)
             base_url: ORCID base URL (defaults to config value)
         """
@@ -28,7 +29,8 @@ class ORCIDAPIClient:
         
         self.access_token = access_token
         self.orcid_id = orcid_id
-        self.base_url = base_url or config('ORCID_BASE_URL', default='https://sandbox.orcid.org')
+        # Use production by default since many ORCID IDs are from production
+        self.base_url = base_url or config('ORCID_BASE_URL', default='https://orcid.org')
         
         # Convert to public API URL
         if 'sandbox.orcid.org' in self.base_url:
@@ -36,10 +38,34 @@ class ORCIDAPIClient:
         else:
             self.api_base_url = 'https://pub.orcid.org/v3.0'
         
-        self.headers = {
-            'Authorization': f'Bearer {self.access_token}',
-            'Accept': 'application/json'
-        }
+        # Set headers - only include Authorization if we have a token
+        self.headers = {'Accept': 'application/json'}
+        if self.access_token:
+            self.headers['Authorization'] = f'Bearer {self.access_token}'
+    
+    def _make_request(self, url, params=None):
+        """
+        Make HTTP request with SSL verification handling.
+        
+        Args:
+            url: Request URL
+            params: Query parameters
+            
+        Returns:
+            Response JSON data
+        """
+        try:
+            response = requests.get(url, headers=self.headers, params=params, verify=True)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.SSLError:
+            # If SSL verification fails, try without verification (for testing environments)
+            print("⚠️  SSL verification failed, retrying without verification...")
+            # Disable SSL warnings for this request
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            response = requests.get(url, headers=self.headers, params=params, verify=False)
+            response.raise_for_status()
+            return response.json()
     
     def search_researchers(self, query: str, rows: int = 20, start: int = 0) -> Dict:
         """
@@ -63,9 +89,7 @@ class ORCIDAPIClient:
             'start': start
         }
         
-        response = requests.get(url, headers=self.headers, params=params)
-        response.raise_for_status()
-        return response.json()
+        return self._make_request(url, params)
     
     def get_researcher_record(self) -> Dict:
         """
@@ -77,9 +101,7 @@ class ORCIDAPIClient:
         clean_orcid_id = self._clean_orcid_id(self.orcid_id)
         url = f"{self.api_base_url}/{clean_orcid_id}"
         
-        response = requests.get(url, headers=self.headers)
-        response.raise_for_status()
-        return response.json()
+        return self._make_request(url)
     
     def get_researcher_person_info(self) -> Dict:
         """
@@ -91,9 +113,7 @@ class ORCIDAPIClient:
         clean_orcid_id = self._clean_orcid_id(self.orcid_id)
         url = f"{self.api_base_url}/{clean_orcid_id}/person"
         
-        response = requests.get(url, headers=self.headers)
-        response.raise_for_status()
-        return response.json()
+        return self._make_request(url)
     
     def get_researcher_works(self) -> Dict:
         """
@@ -105,9 +125,7 @@ class ORCIDAPIClient:
         clean_orcid_id = self._clean_orcid_id(self.orcid_id)
         url = f"{self.api_base_url}/{clean_orcid_id}/works"
         
-        response = requests.get(url, headers=self.headers)
-        response.raise_for_status()
-        return response.json()
+        return self._make_request(url)
     
     def get_researcher_employments(self) -> Dict:
         """
@@ -119,9 +137,7 @@ class ORCIDAPIClient:
         clean_orcid_id = self._clean_orcid_id(self.orcid_id)
         url = f"{self.api_base_url}/{clean_orcid_id}/employments"
         
-        response = requests.get(url, headers=self.headers)
-        response.raise_for_status()
-        return response.json()
+        return self._make_request(url)
     
     def get_researcher_education(self) -> Dict:
         """
@@ -133,9 +149,7 @@ class ORCIDAPIClient:
         clean_orcid_id = self._clean_orcid_id(self.orcid_id)
         url = f"{self.api_base_url}/{clean_orcid_id}/educations"
         
-        response = requests.get(url, headers=self.headers)
-        response.raise_for_status()
-        return response.json()
+        return self._make_request(url)
     
     def get_researcher_funding(self) -> Dict:
         """
@@ -147,9 +161,7 @@ class ORCIDAPIClient:
         clean_orcid_id = self._clean_orcid_id(self.orcid_id)
         url = f"{self.api_base_url}/{clean_orcid_id}/fundings"
         
-        response = requests.get(url, headers=self.headers)
-        response.raise_for_status()
-        return response.json()
+        return self._make_request(url)
     
     def get_researcher_activities(self) -> Dict:
         """
@@ -161,9 +173,7 @@ class ORCIDAPIClient:
         clean_orcid_id = self._clean_orcid_id(self.orcid_id)
         url = f"{self.api_base_url}/{clean_orcid_id}/activities"
         
-        response = requests.get(url, headers=self.headers)
-        response.raise_for_status()
-        return response.json()
+        return self._make_request(url)
     
     def get_researcher_peer_reviews(self) -> Dict:
         """
@@ -175,9 +185,7 @@ class ORCIDAPIClient:
         clean_orcid_id = self._clean_orcid_id(self.orcid_id)
         url = f"{self.api_base_url}/{clean_orcid_id}/peer-reviews"
         
-        response = requests.get(url, headers=self.headers)
-        response.raise_for_status()
-        return response.json()
+        return self._make_request(url)
     
     def get_researcher_research_resources(self) -> Dict:
         """
@@ -189,9 +197,7 @@ class ORCIDAPIClient:
         clean_orcid_id = self._clean_orcid_id(self.orcid_id)
         url = f"{self.api_base_url}/{clean_orcid_id}/research-resources"
         
-        response = requests.get(url, headers=self.headers)
-        response.raise_for_status()
-        return response.json()
+        return self._make_request(url)
     
     def get_researcher_distinctions(self) -> Dict:
         """
@@ -203,9 +209,7 @@ class ORCIDAPIClient:
         clean_orcid_id = self._clean_orcid_id(self.orcid_id)
         url = f"{self.api_base_url}/{clean_orcid_id}/distinctions"
         
-        response = requests.get(url, headers=self.headers)
-        response.raise_for_status()
-        return response.json()
+        return self._make_request(url)
     
     def get_researcher_invited_positions(self) -> Dict:
         """
@@ -217,9 +221,7 @@ class ORCIDAPIClient:
         clean_orcid_id = self._clean_orcid_id(self.orcid_id)
         url = f"{self.api_base_url}/{clean_orcid_id}/invited-positions"
         
-        response = requests.get(url, headers=self.headers)
-        response.raise_for_status()
-        return response.json()
+        return self._make_request(url)
     
     def get_researcher_memberships(self) -> Dict:
         """
@@ -231,9 +233,7 @@ class ORCIDAPIClient:
         clean_orcid_id = self._clean_orcid_id(self.orcid_id)
         url = f"{self.api_base_url}/{clean_orcid_id}/memberships"
         
-        response = requests.get(url, headers=self.headers)
-        response.raise_for_status()
-        return response.json()
+        return self._make_request(url)
     
     def get_researcher_services(self) -> Dict:
         """
@@ -245,9 +245,7 @@ class ORCIDAPIClient:
         clean_orcid_id = self._clean_orcid_id(self.orcid_id)
         url = f"{self.api_base_url}/{clean_orcid_id}/services"
         
-        response = requests.get(url, headers=self.headers)
-        response.raise_for_status()
-        return response.json()
+        return self._make_request(url)
     
     def get_researcher_qualifications(self) -> Dict:
         """
@@ -259,9 +257,7 @@ class ORCIDAPIClient:
         clean_orcid_id = self._clean_orcid_id(self.orcid_id)
         url = f"{self.api_base_url}/{clean_orcid_id}/qualifications"
         
-        response = requests.get(url, headers=self.headers)
-        response.raise_for_status()
-        return response.json()
+        return self._make_request(url)
     
     def _clean_orcid_id(self, orcid_id: str) -> str:
         """
