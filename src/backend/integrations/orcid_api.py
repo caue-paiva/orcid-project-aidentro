@@ -2,7 +2,8 @@
 ORCID API utility functions.
 
 This module provides helper functions for interacting with the ORCID Public API
-using access tokens obtained through the OAuth flow.
+using access tokens obtained through the OAuth flow, and CrossRef API for
+publication metadata retrieval by DOI.
 """
 
 import requests
@@ -555,4 +556,73 @@ class ORCIDAPIClient:
         # Check format: 0000-0000-0000-000X
         pattern = r'^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$'
         return bool(re.match(pattern, orcid_id))
+    
+    def search_researchers_by_doi(self, doi: str, **kwargs) -> List[Dict]:
+        """
+        Search for researchers who have a specific DOI in their works.
+        
+        Args:
+            doi: DOI to search for (with or without doi: prefix)
+            **kwargs: Additional search parameters
+            
+        Returns:
+            List of researcher records that include this DOI
+        """
+        # Clean DOI - remove doi: prefix if present
+        clean_doi = doi.replace('doi:', '') if doi.startswith('doi:') else doi
+        
+        query = f'digital-object-ids:"{clean_doi}"'
+        
+        # Add additional search parameters
+        for key, value in kwargs.items():
+            if value:
+                query += f' AND {key}:"{value}"'
+        
+        results = self.search_researchers(query)
+        return results.get('result', [])
+    
+    def find_researchers_with_publication(self, doi: str, rows: int = 20) -> Dict:
+        """
+        Find researchers who have claimed a specific publication (by DOI).
+        
+        Args:
+            doi: DOI of the publication to search for
+            rows: Number of results to return
+            
+        Returns:
+            Dictionary with search results and researcher information
+        """
+        # Clean DOI
+        clean_doi = doi.replace('doi:', '') if doi.startswith('doi:') else doi
+        
+        query = f'digital-object-ids:"{clean_doi}"'
+        results = self.search_researchers(query, rows=rows)
+        
+        # Format results for easier consumption
+        formatted_results = {
+            'doi': clean_doi,
+            'total_found': results.get('num-found', 0),
+            'researchers': []
+        }
+        
+        for item in results.get('result', []):
+            researcher = {
+                'orcid_id': item.get('orcid-identifier', {}).get('path'),
+                'name': None,
+                'institution': None
+            }
+            
+            # Extract name if available
+            if 'given-names' in item and 'family-names' in item:
+                given = item['given-names']['value'] if item.get('given-names') else ''
+                family = item['family-names']['value'] if item.get('family-names') else ''
+                researcher['name'] = f"{given} {family}".strip()
+            
+            # Extract current institution if available
+            if 'institution-name' in item:
+                researcher['institution'] = item['institution-name'].get('value')
+            
+            formatted_results['researchers'].append(researcher)
+        
+        return formatted_results
 

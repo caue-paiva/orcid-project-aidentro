@@ -14,11 +14,11 @@ def test_scholarly_search():
     try:
         # Try to import scholarly
         print("📋 Step 1: Importing scholarly library...")
-        from scholarly import scholarly
-        print("✅ Successfully imported scholarly")
+        from backend.integrations.google_scholar import GoogleScholarAPI
+        print("✅ Successfully imported Google Scholar API")
         
         # Try a simple search
-        print("\n📋 Step 2: Searching for 'Geoffrey Hinton'...")
+        print("\n📋 Step 2: Searching for 'Marty Banks, Berkeley'...")
         
         # Add a small delay to be respectful
         time.sleep(2)

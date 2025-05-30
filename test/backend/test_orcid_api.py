@@ -6,12 +6,10 @@ Test script for ORCIDAPIClient with hardcoded ORCID ID: 0009-0007-8094-7155
 import sys
 import os
 
-# Add the src/backend directory to Python path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-backend_dir = os.path.join(current_dir, '..', '..', 'src', 'backend')
-sys.path.insert(0, backend_dir)
+# Add the src directory to Python path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from orcid_utils import ORCIDAPIClient
+from backend.integrations.orcid_api import ORCIDAPIClient
 import json
 
 def test_orcid_client():
@@ -185,6 +183,7 @@ def test_without_token():
     for invalid_id in invalid_ids:
         is_valid = ORCIDAPIClient.validate_orcid_id_format(invalid_id)
         print(f"   {invalid_id or '(empty)'}: {is_valid}")
+
 
 if __name__ == "__main__":
     print("🚀 Starting ORCID API Client Tests")

@@ -1,4 +1,7 @@
 """
+WORK IN PROGRESS, has not been tested yet
+
+
 Google Scholar API utility functions for citation metrics.
 
 This module provides functions to extract citation data from Google Scholar

@@ -7,9 +7,9 @@ This script demonstrates how to use the Google Scholar API to get citation metri
 
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'src', 'backend'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from google_scholar_api import (
+from backend.integrations.google_scholar import (
     GoogleScholarAPI, 
     get_author_citations_by_year,
     get_author_citations_for_years,
