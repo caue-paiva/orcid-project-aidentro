@@ -1,0 +1,450 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# **ORCID Public API: Documentation and Integration Guide**
+
+## **1\. Introduction to ORCID and the Public API**
+
+### **1.1. What is ORCID?**
+
+ORCID (Open Researcher and Contributor ID) is a global, not-for-profit organization dedicated to connecting research and researchers.1 Its primary mission is to resolve the ambiguity of researcher names by assigning a unique persistent digital identifier (an ORCID iD) to individual researchers. Beyond simple identification, ORCID aims to link these identifiers with a researcher's professional activities, affiliations, and contributions, such as publications, datasets, grants, peer review activities, and educational history.2
+
+This system of unique identification and verified connections serves a critical function within the scholarly communication ecosystem. ORCID acts as a central "information hub," enabling researchers to manage and share their professional information reliably.2 By fostering a trusted research infrastructure, ORCID helps to ensure that researchers receive appropriate credit for their work and facilitates collaboration and discovery across disciplines and geographical boundaries. The Public API is one of the key instruments through which ORCID extends its services to the broader research community, forming an integral part of this ecosystem.
+
+### **1.2. Overview of the ORCID Public API**
+
+The ORCID Public API is a service designed to allow organizations that are not ORCID members, as well as individual developers, to connect their systems and applications to the ORCID registry.1 It operates as a RESTful (Representational State Transfer) API, adhering to common web standards, and supports data exchange in both XML (Extensible Markup Language) and JSON (JavaScript Object Notation) formats.1 This API is available for anyone to use and is specifically tailored for reading publicly accessible information from the ORCID registry.3
+
+The provision of a free Public API represents a foundational layer for wider ORCID adoption. It offers essential read-only functionalities and basic authentication services without requiring the financial or contractual commitments associated with ORCID membership. This tiered access model—Public API for general use and a more feature-rich Member API for ORCID member organizations—appears to be a strategic approach. It balances broad community engagement and the promotion of ORCID iD integration with a sustainable model that encourages membership for organizations requiring more advanced capabilities, such as writing data to ORCID records.
+
+### **1.3. Key Capabilities of the Public API**
+
+The ORCID Public API provides a defined set of functionalities enabling external systems to interact with the ORCID registry. These core capabilities include 1:
+
+1. **Signing into your system with ORCID**: Allows applications to use ORCID credentials as a method for user authentication, enabling users to sign in with their existing ORCID account.  
+2. **Collecting users' validated ORCID iDs**: Provides a mechanism for systems to obtain a user's ORCID iD in an authenticated manner, ensuring accuracy and user consent.  
+3. **Retrieving public data from a user’s ORCID record**: Enables applications to read and display any information on an ORCID record that the user has marked as publicly visible.  
+4. **Searching public ORCID registry data**: Allows systems to search the ORCID registry for public records based on various criteria.
+
+These functions primarily focus on identification, user authentication, and the retrieval of public data. This positions the Public API as a tool predominantly for discovery, verification, and integrating ORCID sign-in functionalities. It deliberately does not include capabilities for adding or modifying data on ORCID records, a key distinction from the ORCID Member API, which is designed for deeper, bi-directional integrations by member institutions.4 This design choice helps protect the integrity of ORCID records by limiting write access to vetted member organizations, while still offering significant utility for public data consumption and identity verification.
+
+### **1.4. Supported Data Formats**
+
+To ensure broad compatibility and ease of integration, the ORCID Public API supports multiple common data formats for requests and responses. Primarily, it supports both XML and JSON.1 XML has long been a standard in many enterprise and academic systems, while JSON is widely favored in modern web applications due to its lightweight nature and ease of parsing, particularly with JavaScript. Offering both formats maximizes the API's utility across a diverse range of client applications and programming environments.
+
+In addition to XML and JSON for general record data retrieval, the API also supports CSV (Comma-Separated Values) format specifically for search results.6 This is a practical feature for users who may need to quickly extract tabular data, such as lists of researchers matching certain criteria, without the need to parse more complex XML or JSON structures. This lowers the technical barrier for certain data analysis or reporting use cases.
+
+## **2\. Getting Started: Credentials and Environments**
+
+### **2.1. API Environments: Sandbox and Production**
+
+ORCID provides two distinct environments for API interaction:
+
+* **Production Environment**: The live system, accessible at https://orcid.org.3 Data in this environment is real user data.  
+* **Sandbox Environment**: A testing server, accessible at https://sandbox.orcid.org/.3 This environment is specifically for development and testing purposes.
+
+Developers are strongly recommended to conduct all initial development and testing of their Public API integrations against the sandbox server.1 This practice is crucial for ensuring that integrations function correctly without the risk of affecting live user data or the production ORCID registry. The sandbox environment allows developers to experiment freely, create test accounts, and simulate API interactions. ORCID's commitment to facilitating robust integration development is further demonstrated by the fact that the sandbox can also be used to test Member API features, even by those who are not yet ORCID members.3 This allows potential members to evaluate the full suite of ORCID's API capabilities before making a commitment, potentially streamlining the adoption process for member-level integrations.
+
+### **2.2. Registering for Public API Credentials**
+
+To interact with the ORCID Public API (beyond anonymous, more limited access), applications must use a set of credentials, specifically a Client ID and a Client Secret.3 These credentials authenticate the application to the ORCID API.
+
+The process for registering for Public API credentials involves the following steps 1:
+
+1. **Sign into your ORCID record**: Credentials are tied to an individual's ORCID record. Access the production server at https://orcid.org/signin or the sandbox server at https://sandbox.orcid.org/signin.  
+2. **Verify your email address**: Access to Developer Tools, where credentials are registered, requires a verified email address associated with the ORCID record. Users will be prompted if verification is pending.  
+3. **Access Developer Tools**: After signing in and ensuring email verification, navigate to "Developer Tools" from the menu typically found under the user's name.  
+4. **Agree to Terms of Service**: Users must read and agree to the 'ORCID Public APIs Terms of Service'.  
+5. **Register for Credentials**: Click the "Register for ORCID Public API Credentials" button.
+
+Tying Public API credentials to an individual's ORCID record and mandating email verification establishes a baseline level of accountability, even for free API usage.7 This allows ORCID to trace API activity, communicate important updates or changes to API clients, and address potential misuse more effectively than with purely anonymous access. This approach aligns with the broader goal of maintaining a trusted research infrastructure.
+
+#### **2.2.1. Application Details**
+
+Upon initiating the registration of a new application client, developers are required to provide specific details about their application 1:
+
+* **Name**: The name of the application. This name will be displayed to users during the OAuth authorization process and in their list of trusted organizations. It is recommended to use the name of the organization or service (e.g., a journal name).  
+* **Application URL**: A website where users can find more information about the application. This URL is also displayed in the user's trusted organization list.  
+* **Application Description**: Information about the application and how it intends to use the user's ORCID iD. This description is shown on the OAuth authorization screen.
+
+The requirement for these descriptive details, which are presented to users, underscores ORCID's commitment to user transparency and control.1 Users must be able to understand which application is requesting access to their ORCID iD and for what purpose, enabling them to make informed decisions about granting permissions. This helps build user trust and prevents deceptive applications from gaining unauthorized access.
+
+#### **2.2.2. Redirect URIs**
+
+Redirect URIs (Uniform Resource Identifiers) are a critical component of the OAuth 2.0 authorization flow. They specify the locations to which a user is redirected after they have successfully authorized (or denied) an application's request for access on the ORCID website.1
+
+Key considerations for Redirect URIs include 1:
+
+* **Pre-registration**: All redirect URIs must be registered in advance within the application's settings in Developer Tools. If a URI is not registered, users will encounter an error.  
+* **HTTPS in Production**: For applications operating against the production ORCID server, only HTTPS URIs are accepted. This ensures that the authorization code exchanged during the OAuth flow is transmitted securely.  
+* **Exact Domain Matching**: Registered domains, including any subdomains, must exactly match the domains used in the redirect URIs during the OAuth process.  
+* **Security Recommendation**: It is strongly recommended to register the full and exact redirect URIs whenever possible, rather than using wildcards or more permissive patterns, as this is the most secure option.
+
+The strict validation rules for redirect URIs, particularly the enforcement of HTTPS in production and exact domain matching, highlight ORCID's strong emphasis on security within its OAuth implementation. These measures are specifically designed to mitigate risks such as authorization code interception and phishing attacks, where a malicious actor might attempt to impersonate a legitimate application to steal access tokens. While these strictures may require more precise configuration by developers, they are a necessary trade-off for enhanced security in handling user authorizations.
+
+## **3\. Authentication and Authorization: OAuth 2.0**
+
+### **3.1. Overview of OAuth 2.0 with ORCID**
+
+ORCID employs the OAuth 2.0 protocol as its standard mechanism for both authentication (verifying who the user is) and authorization (determining what an application is allowed to do on the user's behalf).3 OAuth 2.0 is an industry-standard framework that enables third-party applications to access resources hosted on a web service, such as ORCID, without exposing the user's primary credentials (i.e., their ORCID username and password) to the third-party application.
+
+This protocol is fundamentally user-centric, meaning the user is always in control and must explicitly grant permission before an application can access their ORCID iD or any data associated with their record.9 This process involves redirecting the user to an ORCID authorization page where they sign in (if not already signed in) and approve the specific permissions (known as "scopes") requested by the application. The adoption of OAuth 2.0 aligns ORCID with established web security practices, making it more straightforward for developers familiar with the protocol to build integrations.
+
+### **3.2. Obtaining an Access Token**
+
+An access token is a credential that applications use to make authenticated requests to the ORCID API on behalf of a user, or for the application itself in some cases. The ORCID Public API primarily utilizes two OAuth 2.0 grant types for obtaining access tokens, suited for different scenarios.
+
+#### **3.2.1. Client Credentials Grant (for programmatic search)**
+
+For server-to-server interactions where no direct user involvement is necessary at the moment of the API call—such as automated systems searching the public ORCID registry—the Client Credentials Grant is used.11 This is often referred to as 2-legged OAuth.
+
+To obtain an access token using this grant, the application makes a direct POST request to the ORCID token endpoint (https://orcid.org/oauth/token or https://sandbox.orcid.org/oauth/token). The request must include:
+
+* client\_id: The application's client ID.  
+* client\_secret: The application's client secret.  
+* grant\_type: Set to client\_credentials.  
+* scope: Set to /read-public to request permission to read public data and search the registry.6
+
+This flow is efficient for backend processes or automated tasks that need to query the ORCID database for public information without requiring a user to authenticate for each search operation. The provision of this grant type streamlines such integrations.
+
+#### **3.2.2. Authorization Code Grant (for user-interactive scenarios)**
+
+When an application needs to obtain a user's authenticated ORCID iD or perform actions that require direct user consent (like "Sign in with ORCID"), the Authorization Code Grant is used.3 This is commonly known as 3-legged OAuth and involves the user's active participation. The process unfolds in three main steps:
+
+1. **Create and Redirect to Authorization URL**: The application constructs a special URL pointing to the ORCID authorization endpoint (e.g., https://sandbox.orcid.org/oauth/authorize). This URL includes parameters such as the application's client\_id, response\_type=code, the requested scope(s), and a redirect\_uri.3 The user's browser is then redirected to this URL.  
+2. **User Authentication and Authorization**: The user is prompted to sign into their ORCID account (if they haven't already). ORCID then displays the permissions requested by the application. If the user approves, ORCID redirects their browser back to the redirect\_uri specified by the application. This redirect includes a short-lived, single-use authorization\_code appended as a query parameter.3  
+3. **Exchange Authorization Code for Access Token**: The application, on its server-side, receives the authorization\_code. It then makes a secure, direct POST request to the ORCID token endpoint (e.g., https://sandbox.orcid.org/oauth/token). This request includes the authorization\_code, along with the application's client\_id, client\_secret, grant\_type=authorization\_code, and the same redirect\_uri used in the initial step.3 If successful, ORCID returns an access token (and potentially other information like the authenticated ORCID iD).
+
+This multi-step process ensures that the user explicitly grants permission and that the access token is securely transmitted to the application's backend, not exposed in the user's browser.
+
+### **3.3. Available Scopes for Public API**
+
+Scopes are a crucial part of OAuth 2.0, defining the specific permissions an application requests from the user. Using the most granular and minimal scopes necessary for an application's functionality is a security best practice. For the ORCID Public API, the available scopes are primarily focused on identity verification and reading public data. Key scopes include:
+
+* /authenticate: This scope is used to collect the user's authenticated ORCID iD and to gain permission to read public information on their ORCID record.5 It is the fundamental scope for "Sign in with ORCID" functionality and is available for all Public API clients.  
+* /read-public: This scope grants permission to read all publicly available information on a specific ORCID iD. It can be obtained via the Client Credentials Grant for searching the registry or can be requested as part of the Authorization Code Grant if an application needs to read a user's full public record after they authenticate.6  
+* openid: This scope is used by applications implementing OpenID Connect, an identity layer built on top of OAuth 2.0. When openid is requested, ORCID will return an id\_token in the token response, which contains authenticated user information. This scope is available on both the Public and Member APIs.5 Notably, the openid scope does not begin with a / character, as it is defined by the OpenID Connect specification rather than by ORCID.
+
+The limited set of scopes available to the Public API reinforces its intended role. More extensive scopes, such as those for updating activities (/activities/update) or personal information (/person/update), are explicitly reserved for the Member API.5 This distinction maintains a clear boundary between the capabilities offered to free integrations versus those available to ORCID member organizations, which typically have a vested interest in curating and contributing data to ORCID records.
+
+### **OAuth 2.0 Parameter Tables**
+
+The following tables summarize the key parameters used in the OAuth 2.0 Authorization Code Grant flow with the ORCID Public API.
+
+**Table 1: OAuth Authorization URL Parameters**
+
+| Parameter | Description | Example Value | Source(s) |
+| :---- | :---- | :---- | :---- |
+| host | The base URL for the ORCID OAuth authorization endpoint. | https://sandbox.orcid.org/oauth/authorize | 3 |
+| client\_id | Your application's unique Client ID, obtained from ORCID Developer Tools. | APP-XXXXXXXXXXXXXXXXX | 3 |
+| response\_type | Specifies the type of response expected. For the Authorization Code Grant, this must be code. | code | 3 |
+| scope | A space-separated list of permissions the application is requesting (e.g., /authenticate, /read-public, openid). | /authenticate or /read-public openid | 3 |
+| redirect\_uri | The URI to which ORCID will redirect the user after authorization. Must be one of the pre-registered URIs for your application. | https://developers.google.com/oauthplayground | 3 |
+| given\_names | (Optional) Pre-fills the first name field on the ORCID registration form if the user is creating a new account. | John | 6 |
+| family\_names | (Optional) Pre-fills the last name field on the ORCID registration form. | Doe | 6 |
+| email | (Optional) Pre-fills the email/ORCID iD field on the sign-in or registration form. Should be URL encoded. | user%40example.com | 6 |
+| orcid | (Optional) Pre-fills the email/ORCID iD field on the sign-in form if the ORCID iD is known. Must be in 16-digit URI format. | https://orcid.org/0000-0000-0000-0000 | 6 |
+
+**Table 2: Token Exchange Parameters (for Authorization Code Grant)**
+
+| Parameter | Description | Example Value | Source(s) |
+| :---- | :---- | :---- | :---- |
+| URL | The ORCID OAuth token endpoint. | https://sandbox.orcid.org/oauth/token | 3 |
+| client\_id | Your application's unique Client ID. | APP-XXXXXXXXXXXXXXXXX | 3 |
+| client\_secret | Your application's Client Secret. | your\_client\_secret\_value | 3 |
+| grant\_type | Specifies the grant type being used. For exchanging an authorization code, this must be authorization\_code. | authorization\_code | 3 |
+| code | The authorization code received from ORCID via the redirect URI after user authorization. | Six-digit-code (e.g., a1b2c3) | 3 |
+| redirect\_uri | The same redirect URI that was used in the initial authorization request. | https://developers.google.com/oauthplayground | 3 |
+
+## **4\. Core API Functionality: Endpoints and Operations (Version 3.0)**
+
+The ORCID Public API, specifically version 3.0, provides several endpoints for interacting with ORCID data. Understanding these endpoints is key to leveraging the API's capabilities.
+
+### **4.1. Base URLs (Public API v3.0)**
+
+All requests to the ORCID Public API version 3.0 should be directed to the following base URLs, with specific endpoint paths appended:
+
+* **Sandbox Environment**: https://pub.sandbox.orcid.org/v3.0/ 3  
+* **Production Environment**: https://pub.orcid.org/v3.0/ 6
+
+The use of a distinct pub. subdomain for the Public API (e.g., pub.sandbox.orcid.org) clearly differentiates it from the Member API, which typically uses an api. subdomain (e.g., api.sandbox.orcid.org). This structural separation can assist ORCID in managing traffic, applying different operational policies or rate limits, and allows developers to be certain about which API tier they are targeting. The inclusion of /v3.0/ in the path is a standard and crucial practice for API versioning, enabling ORCID to introduce future API versions without disrupting existing integrations that are built against version 3.0.
+
+### **4.2. Searching the ORCID Registry**
+
+One of the primary functions of the Public API is to allow applications to search the ORCID registry for public records.
+
+* **Endpoint**: /search/ 3  
+* **Request Method**: GET  
+* **Authentication**: Requires a /read-public access token, typically obtained via the Client Credentials Grant. The token should be included in the Authorization header as a Bearer token (e.g., Authorization: Bearer \<your\_access\_token\>).6  
+* **Query Syntax**: The search endpoint supports the powerful Solr query syntax. This includes Lucene syntax with Solr extensions (which is the default), as well as DisMax and Extended DisMax syntaxes.6 This allows for highly flexible and precise searching capabilities, including fielded searches, boolean operators, wildcard characters, and phrase searching.  
+* **Search Results**: By default, basic search results return only the ORCID iDs of matching records.11 To retrieve full details for a specific record, a subsequent API call to the record endpoint is necessary. However, a CSV search option allows for specifying certain fields to be returned directly in the search results.6
+
+The use of Solr/Lucene syntax provides developers with a versatile tool far exceeding simple keyword matching, enabling complex queries to effectively navigate ORCID's extensive database. The design choice of returning only ORCID iDs by default for standard searches promotes a two-step data retrieval process: first, search to identify relevant iDs, and then fetch detailed information for selected records. This can be more efficient, particularly for applications that only need the iD or wish to selectively retrieve full data, as it keeps initial search responses lean and fast. Clients can then make targeted requests for comprehensive details of only the records they are genuinely interested in.
+
+**Table 3: Search Endpoint Parameters**
+
+| Parameter | Description | Example Value | Source(s) |
+| :---- | :---- | :---- | :---- |
+| q | The search query string, using Solr/Lucene syntax. | family-name:Doe AND given-names:John or text:nanotechnology | 3 |
+| rows | The number of search results to return per page. The maximum is 1000\. | 100 3 | 3 |
+| start | The offset for pagination, indicating the starting record number for the results (0-indexed). | 0 (for the first page), 100 (for the second page if rows=100) |  |
+| fl | (For CSV search via /csv-search/ endpoint) A comma-separated list of fields to include in the CSV output. | orcid,given-names,family-name,current-institution-affiliation-name | 6 |
+
+Table 4: Common Searchable Fields (Public API)  
+The ORCID search API supports querying against a variety of fields within an ORCID record. Some common fields include 6:
+
+| Field Name | Description | Example Query Segment |
+| :---- | :---- | :---- |
+| orcid | The 16-digit ORCID identifier. | orcid:0000-0001-2345-6789 |
+| given-names | A researcher's given name(s). | given-names:Maria |
+| family-name | A researcher's family name. | family-name:Curie |
+| credit-name | The name a researcher uses for publications. | credit-name:"J. R. Smith" |
+| other-names | Other names or name variants associated with the researcher. | other-names:Smithsonian |
+| email | Publicly visible email addresses on the record (exact match). | email:user@example.com |
+| keyword | Keywords associated with the researcher's profile. | keyword:"data science" |
+| affiliation-org-name | The name of an organization where the researcher has an affiliation (e.g., employment, education). | affiliation-org-name:"ORCID University" |
+| grid-org-id, ror-org-id | Standard organization identifiers (GRID, ROR) for affiliations. | ror-org-id:https://ror.org/02catss52 |
+| work-titles | Titles of research works (publications, datasets, etc.). | work-titles:"The Structure of DNA" |
+| digital-object-ids | Digital Object Identifiers (DOIs) associated with works. | digital-object-ids:10.1000/xyz123 |
+| grant-numbers | Grant numbers associated with funding activities. | grant-numbers:GM123456 |
+| text | A general search across multiple text fields in the record (default field for basic Lucene queries). | text:genomics |
+| profile-submission-date | The date the ORCID record was created (supports date range queries). | profile-submission-date: |
+| profile-last-modified-date | The date the ORCID record was last modified (supports date range queries). | profile-last-modified-date: |
+
+Knowing these searchable fields is crucial for constructing meaningful and targeted queries. For instance, searching family-name:Garcia AND affiliation-org-name:"Anytown University" is significantly more precise than a broad text search, aiding in the effective disambiguation and discovery of researchers.
+
+### **4.3. Retrieving ORCID Record Data**
+
+Once an ORCID iD is known (e.g., from a search or user authentication), the Public API can be used to retrieve the public data associated with that ORCID record.
+
+* **Endpoint Structure**: /{ORCID\_ID}/{section} or /{ORCID\_ID} for a summary view.3  
+  * The {ORCID\_ID} path parameter represents the 16-digit ORCID identifier of the researcher (e.g., 0000-0001-2345-6789).  
+  * The optional /{section} path parameter allows retrieval of specific parts of the ORCID record. Common sections include:  
+    * /person: Biographical information (names, keywords, websites, external identifiers, etc.).14  
+    * /activities: A summary of all activities (employment, education, funding, works, peer reviews, etc.).14  
+    * Individual activity sections like /works, /funding, /employment, /education, /peer-reviews, /research-resources, /distinctions, /invited-positions, /memberships, /services, /qualifications.5  
+    * /record: A summary view of the full ORCID record.14  
+* **Request Method**: GET  
+* **Authentication**: Requires an access token (e.g., a /read-public token or a token obtained via the /authenticate scope during user sign-in). The token is passed in the Authorization header as a Bearer token.3  
+* **Content Negotiation**: Clients can specify their preferred data format (XML or JSON) using the Accept HTTP header:  
+  * For XML: application/vnd.orcid+xml or application/xml  
+  * For JSON: application/vnd.orcid+json or application/json 3
+
+The API's design providing granular access to different sections of an ORCID record allows applications to fetch only the specific data they require. This is more efficient than retrieving an entire, potentially large, ORCID record if, for example, an application only needs to display a list of publications (/works) or employment history (/employments). This modular approach reduces bandwidth consumption and processing overhead for both the ORCID servers and the client application, reflecting a well-structured REST API design.
+
+## **5\. Common Use Cases and Request Examples**
+
+The ORCID Public API supports several common integration scenarios. The following examples illustrate how to use the API for these purposes. Note that these are conceptual examples; actual implementation will require obtaining valid credentials and access tokens.
+
+### **5.1. Use Case 1: Searching for Researchers**
+
+**Scenario**: An institutional repository wants to find ORCID iDs for researchers named "Chandra" who may be affiliated with the "National Institute of Science" to help link their publications within the repository system.
+
+**API Interaction**:
+
+1. The repository's backend system obtains a /read-public access token using the Client Credentials Grant (as described in section 3.2.1).  
+2. The system then makes a GET request to the /search/ endpoint, using fielded search terms to refine the results.
+
+**Example Request (Conceptual)**:
+
+HTTP
+
+GET https://pub.sandbox.orcid.org/v3.0/search/?q=family-name:Chandra+AND+affiliation-org-name:"National Institute of Science"  
+Authorization: Bearer \<your\_read\_public\_access\_token\>  
+Accept: application/vnd.orcid+json
+
+This request combines family-name and affiliation-org-name (fields from Table 4\) to significantly narrow down potential matches, which is more effective than a general keyword search, especially for common names. This demonstrates a fundamental discovery use case critical for disambiguation.
+
+### **5.2. Use Case 2: Retrieving Public Information from an ORCID Record**
+
+**Scenario**: A research networking platform has identified a researcher's ORCID iD (e.g., 0000-0002-1825-0097) and wants to display their public list of employment affiliations on their profile page.
+
+**API Interaction**:
+
+1. The platform ensures it has a valid access token with at least /read-public permission for the ORCID iD in question. This token could be a general /read-public token or one obtained after the user authenticated via the platform.  
+2. The platform makes a GET request to the /{ORCID\_ID}/employments endpoint.
+
+**Example Request (Conceptual)**:
+
+HTTP
+
+GET https://pub.sandbox.orcid.org/v3.0/0000-0002-1825-0097/employments  
+Authorization: Bearer \<your\_access\_token\>  
+Accept: application/vnd.orcid+xml
+
+This use case illustrates fetching a specific section (/employments) of an ORCID record.5 This targeted retrieval is more efficient than fetching the entire record if only employment data is needed, optimizing data transfer and processing.
+
+### **5.3. Use Case 3: Enabling "Sign in with ORCID"**
+
+**Scenario**: A journal submission system wants to allow authors to sign in using their ORCID credentials. This simplifies the login process for authors and allows the system to reliably capture their authenticated ORCID iD, which can then be used to pre-fill submission forms with public information from their ORCID record.
+
+**API Interaction**: This involves the 3-legged OAuth Authorization Code Grant (detailed in section 3.2.2) using the /authenticate scope.5
+
+1. The journal system redirects the author's browser to the ORCID authorization URL, requesting the /authenticate scope.  
+2. The author signs into ORCID (if not already logged in) and authorizes the journal system's request.  
+3. ORCID redirects the author back to the journal system's pre-registered redirect\_uri with an authorization code.  
+4. The journal system's backend exchanges this authorization code for an access token and the authenticated ORCID iD.  
+5. With the access token, the system can then make further API calls to retrieve public data associated with that ORCID iD (e.g., name, affiliations) to pre-fill forms.
+
+**Example Authorization URL Construction (Conceptual)**:
+
+https://sandbox.orcid.org/oauth/authorize?client\_id=YOUR\_JOURNAL\_SYSTEM\_CLIENT\_ID\&response\_type=code\&scope=/authenticate\&redirect\_uri=YOUR\_JOURNAL\_SYSTEM\_REDIRECT\_URI
+
+This "Sign in with ORCID" functionality 1 leverages the /authenticate scope to provide a significant benefit: verified identity. It often serves as the initial step for more complex integrations, enhancing user experience and data accuracy.
+
+### **5.4. Use Case 4: Collecting Validated ORCID iDs**
+
+**Scenario**: A university's research portal wants to allow its faculty members to connect their ORCID iD to their institutional profile, ensuring the iDs collected are accurate and have been authorized by the faculty themselves.
+
+**API Interaction**: Similar to the "Sign in with ORCID" use case, this process uses the 3-legged OAuth Authorization Code Grant with the /authenticate scope.1 The primary objective here is the retrieval and secure storage of the authenticated ORCID iD linked to the faculty member's institutional profile.
+
+1. The portal provides a button or link prompting the faculty member to "Connect your ORCID iD."  
+2. Clicking this initiates the OAuth flow, redirecting the user to ORCID for sign-in and authorization (requesting /authenticate scope).  
+3. Upon successful authorization, the portal receives the authorization code, exchanges it for an access token and the authenticated ORCID iD.  
+4. The portal then stores this validated ORCID iD in the faculty member's profile.
+
+Collecting *authenticated* ORCID iDs is a foundational step for many reliable ORCID integrations.4 Manually entered ORCID iDs are prone to errors or may not belong to the user entering them. The OAuth authentication process ensures that the iD obtained by the system is directly from ORCID and has been confirmed by the user logging into their own account. This validation is critical for building trustworthy connections between researchers, their affiliations, and their activities across disparate systems.
+
+## **6\. Important Considerations**
+
+When integrating with the ORCID Public API, developers should be mindful of several operational and policy aspects to ensure smooth, compliant, and robust applications.
+
+### **6.1. API Rate Limits and Usage Quotas**
+
+ORCID implements rate limits and usage quotas to ensure fair usage and maintain the stability and availability of its API services for all users. For the Public API (using registered client credentials), the following limits apply 15:
+
+**Table 5: Public API Rate Limits and Quotas**
+
+| Limit Type | Value | Consequence of Exceeding | Source(s) |
+| :---- | :---- | :---- | :---- |
+| Rate Limit | 12 requests per second | Throttling; subsequent requests may be delayed or fail. | 15 |
+| Burst Allowance | 40 requests | Requests exceeding burst are queued and slowed; further excess results in 503 errors. | 16 |
+| Daily Usage Quota | 100,000 reads per day per Client ID | Further requests within the 24-hour period will be blocked. | 15 |
+
+These limits were updated, with daily usage quotas being a more recent addition to the previous rate limits.15 This change reflects a strategic move by ORCID to manage its resources sustainably and to encourage very high-volume users, particularly those with commercial applications, to consider ORCID membership. The Member API offers higher or unlimited access.15 The rationale behind these quotas is to ensure that the costs of supporting the API infrastructure are shared equitably among the community, with the heaviest users contributing appropriately to its upkeep.15 Developers must design their applications to respect these limits, implementing retry mechanisms with backoff strategies for transient errors (like 503 due to burst excess) and monitoring daily usage to avoid hitting the quota.
+
+### **6.2. Handling API Errors**
+
+Robust applications must gracefully handle potential errors returned by the API. The ORCID API provides descriptive error messages to aid in troubleshooting.12 A comprehensive list of common API error codes, their meanings, and suggested solutions is available in ORCID's technical documentation on GitHub.13
+
+Common issues that developers might encounter include improperly configured redirect URIs or malformed OAuth authorization links, which can lead to errors during the authentication process.12 The provision of detailed error documentation signifies a commitment to developer experience, helping them to diagnose and resolve issues efficiently.
+
+**Table 6: Common ORCID API Error Codes (Public API Context)**
+
+| HTTP Status Code | ORCID Error Message/Type (Example) | Possible Meaning/Solution (Public API Context) | Source(s) |
+| :---- | :---- | :---- | :---- |
+| 301 | Moved Permanently: This account is deprecated. Please refer to account: https://.../{new-orcid-id}. | The requested ORCID iD has been deprecated and merged into another. Use the new ORCID iD provided in the Location header or error message. | 13 |
+| 400 | Bad Request: The rows parameter must be an integer between 0 and 1,000 | When using the search endpoint, the rows parameter is invalid (e.g., too high). Adjust the rows parameter. | 13 |
+| 400 | Bad Request:...Content is not allowed in prolog. (or other XML/JSON parsing errors) | The request body (if any) contains malformed XML/JSON, or the API cannot find/parse the data. Check data formatting and file paths if sending data. For Public API GET requests, this is less common unless headers are malformed. | 13 |
+| 401 | Bad client credentials | The Client ID or Client Secret used in the request (e.g., for token exchange or client credentials grant) is incorrect or invalid. Verify credentials. | 13 |
+| 401 | Invalid access token | The access token used in the Authorization header is expired, revoked, malformed, or not valid for the requested resource/scope. Obtain a new token or check token validity. Ensure you are using the correct API environment (sandbox/production). | 13 |
+| 403 | Access Denied | The authenticated client/user does not have permission to access the requested resource or perform the action. For Public API, this could mean trying to access non-public data or using a scope not permitted for public clients. | 13 |
+| 404 | Not Found (standard HTTP, may have ORCID specific message) | The requested resource (e.g., an ORCID iD or a specific record section) does not exist. Verify the ORCID iD and endpoint path. |  |
+| 503 | Service Unavailable (standard HTTP) | Often indicates that API rate limits (burst allowance) have been exceeded. Implement retry logic with exponential backoff. Could also indicate temporary server issues. | 16 |
+
+### **6.3. API Versioning**
+
+The ORCID API employs versioning to allow for future enhancements and changes without breaking existing integrations. The documentation and endpoint examples consistently refer to API version 3.0, which is explicitly included in the base URL paths (e.g., .../v3.0/...).3 This practice of URI-based versioning is a clear and explicit method for managing API evolution. It allows developers to build their applications against a specific, stable version of the API. Should ORCID introduce breaking changes in the future, these would typically be released under a new version number (e.g., /v4.0/), allowing existing v3.0 integrations to continue functioning for a defined period. Developers should always ensure their requests target the correct API version.
+
+### **6.4. Terms of Service for Public API**
+
+Use of the ORCID Public API is governed by the 'ORCID Public APIs Terms of Service', which developers must agree to during the credential registration process.1 A key stipulation in these terms is that the Public API is provided free of charge for **non-commercial use by individuals**.6 This means that applications using Public API credentials may not:
+
+* Charge any re-use fees for data obtained via the Public API.  
+* Be used in connection with any revenue-generating product or service.
+
+This "non-commercial use" clause is significant. It clearly defines the intended scope of the free API tier and acts as a mechanism to encourage organizations or individuals with commercial applications or high-volume needs that might generate revenue to become ORCID members. Membership provides access to the Member API, which has different terms and typically higher access limits, and directly supports ORCID's mission and infrastructure. This policy helps maintain ORCID's sustainability model, ensuring that entities deriving financial benefit from ORCID data contribute to the ecosystem that supports the entire research community.
+
+## **7\. Conclusion**
+
+The ORCID Public API v3.0 serves as a vital conduit for non-member organizations and individual developers to integrate ORCID functionalities into their systems. It provides essential capabilities focused on researcher identification, authentication via OAuth 2.0, and the retrieval of publicly available data from the extensive ORCID registry. By supporting standard data formats like XML and JSON, and offering both sandbox and production environments, ORCID facilitates a relatively low barrier to entry for basic integrations.
+
+Key functionalities such as searching the registry with robust Solr/Lucene syntax, retrieving specific sections of an ORCID record, and enabling "Sign in with ORCID" allow for a variety of use cases, from populating institutional repositories to streamlining user authentication in scholarly platforms. The API's design, particularly its adherence to OAuth 2.0 and clear scoping mechanisms (/authenticate, /read-public, openid), emphasizes user control and data security.
+
+Developers utilizing the Public API must be cognizant of operational parameters, including API rate limits and daily usage quotas, and implement robust error handling. Adherence to the non-commercial use clause within the Terms of Service is also paramount. These considerations ensure responsible and sustainable interaction with the ORCID ecosystem. While the Public API offers significant utility for reading public data and verifying identity, organizations requiring capabilities to write or update ORCID records, or needing higher access limits, are directed towards the ORCID Member API. This tiered approach allows ORCID to balance broad accessibility with the operational and financial sustainability of its core mission to connect research and researchers globally.
+
+
+#### More examples:
+
+# API do ORCID
+
+## O que é uma API?
+
+API (Application Programming Interface), ou Interface de Programação de Aplicações, é um conjunto de regras e endpoints que permitem que diferentes sistemas ou aplicações se comuniquem entre si. 
+
+APIs facilitam o consumo de dados ou serviços de terceiros sem que seja necessário conhecer a estrutura interna do sistema, apenas enviando requisições e recebendo respostas via protocolos como HTTP.
+
+Na prática, APIs são utilizadas para:
+- Acessar dados de plataformas externas (ex: dados de redes sociais, clima, bancos).
+- Automatizar integrações entre aplicações.
+- Construir serviços que se comunicam com sistemas externos de forma padronizada.
+
+## Como fazer uma requisição na API pública do ORCID?
+
+### Endpoint Base
+
+https://pub.orcid.org/v3.0/
+
+
+### Exemplos de Requisições GET
+
+Usando `curl` (linha de comando):
+
+```bash
+curl -H "Accept: application/json" https://pub.orcid.org/v3.0/0000-0003-1574-0784
+```
+
+Usando `javascript` (node):
+
+```javascript
+const orcidId = "0000-0003-1574-0784";
+const url = `https://pub.orcid.org/v3.0/${orcidId}`;
+
+fetch(url, {
+    method: 'GET',
+    headers: {
+        'Accept': 'application/json'
+    }
+})
+.then(response => {
+    if (!response.ok) {
+        throw new Error(`Erro na requisição: ${response.status}`);
+    }
+    return response.json();
+})
+.then(data => {
+    const nome = data.person.name['given-names'].value;
+    const sobrenome = data.person.name['family-name'].value;
+    console.log(`Nome completo: ${nome} ${sobrenome}`);
+})
+.catch(error => {
+    console.error('Erro ao buscar dados do ORCID:', error);
+});
+```
+
+Usando `python`:
+
+```python
+import requests
+
+orcid_id = "0000-0003-1574-0784" 
+url = f"https://pub.orcid.org/v3.0/{orcid_id}"
+
+headers = {
+    "Accept": "application/json"
+}
+
+response = requests.get(url, headers=headers)
+
+if response.status_code == 200:
+    data = response.json()
+    nome = data['person']['name']['given-names']['value']
+    sobrenome = data['person']['name']['family-name']['value']
+    print(f"Nome completo: {nome} {sobrenome}")
+else:
+    print(f"Erro na requisição: {response.status_code}")
+```
+
+Caso queira executar os códigos, eles estão também na pasta `/basic-api`.
