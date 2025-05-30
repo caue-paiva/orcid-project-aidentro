@@ -113,6 +113,8 @@ def oauth_callback(request):
         )
         
         logger.info(f"Successfully authenticated user with ORCID iD: {orcid_id}")
+        logger.info(f"Access Token: {access_token}")
+        logger.info(f"ORCID ID: {orcid_id}")
         
         # Here you would typically:
         # 1. Create or get user from database
