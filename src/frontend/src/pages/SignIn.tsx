@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { initiateOrcidAuth } from "@/api/orcidApi";
 
 const SignIn = () => {
   const [email, setEmail] = useState("");
@@ -34,6 +35,11 @@ const SignIn = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleOrcidSignIn = () => {
+    toast.info("Redirecting to ORCID...");
+    initiateOrcidAuth('/authenticate');
   };
 
   return (
@@ -139,8 +145,8 @@ const SignIn = () => {
                 <Button
                   variant="outline"
                   type="button"
-                  className="w-full"
-                  onClick={() => toast.info("ORCID Sign-In would happen here")}
+                  className="w-full bg-orcid-green text-white hover:bg-orcid-green/90"
+                  onClick={handleOrcidSignIn}
                 >
                   ORCID
                 </Button>

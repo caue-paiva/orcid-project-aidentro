@@ -10,8 +10,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { SearchIcon, UsersIcon, BookIcon } from "lucide-react";
+import { initiateOrcidAuth } from "@/api/orcidApi";
+import { toast } from "sonner";
 
 const Home = () => {
+  const handleOrcidSignIn = () => {
+    toast.info("Redirecting to ORCID authentication...");
+    initiateOrcidAuth('/authenticate');
+  };
+
   return (
     <div>
       {/* Hero Section */}
@@ -28,14 +35,15 @@ const Home = () => {
               information: affiliations, grants, publications, peer review, and more.
             </p>
             <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to="/register">
-                <Button className="bg-orcid-green hover:bg-orcid-green/90 text-white px-8 py-6 text-lg">
-                  Register for free
-                </Button>
-              </Link>
-              <Link to="/about">
+              <Button 
+                onClick={handleOrcidSignIn}
+                className="bg-orcid-green hover:bg-orcid-green/90 text-white px-8 py-6 text-lg"
+              >
+                Sign in with ORCID
+              </Button>
+              <Link to="/orcid-test">
                 <Button variant="outline" className="px-8 py-6 text-lg">
-                  Learn more
+                  Test Integration
                 </Button>
               </Link>
             </div>
@@ -190,11 +198,12 @@ const Home = () => {
             Join millions of researchers worldwide who use ORCID to distinguish themselves and their contributions.
           </p>
           <div className="mt-10">
-            <Link to="/register">
-              <Button className="bg-white text-orcid-green hover:bg-gray-100 px-8 py-6 text-lg font-semibold">
-                Register now
-              </Button>
-            </Link>
+            <Button 
+              onClick={handleOrcidSignIn}
+              className="bg-white text-orcid-green hover:bg-gray-100 px-8 py-6 text-lg font-semibold"
+            >
+              Sign in with ORCID
+            </Button>
           </div>
         </div>
       </section>
