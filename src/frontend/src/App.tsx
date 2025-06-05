@@ -12,6 +12,9 @@ import Dashboard from "./pages/Dashboard";
 import Search from "./pages/Search";
 import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
+import AuthSuccess from "./pages/AuthSuccess";
+import AuthError from "./pages/AuthError";
+import OrcidTest from "./pages/OrcidTest";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +33,13 @@ const App = () => (
           <Route path="/profile/:id" element={<Profile />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/search" element={<Search />} />
+          
+          {/* Auth callback routes */}
+          <Route path="/auth/success" element={<AuthSuccess />} />
+          <Route path="/auth/error" element={<AuthError />} />
+          
+          {/* Test route */}
+          <Route path="/orcid-test" element={<OrcidTest />} />
           
           {/* Placeholder routes to avoid 404s */}
           <Route path="/about" element={<Home />} />

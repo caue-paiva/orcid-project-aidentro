@@ -93,7 +93,7 @@ def oauth_callback(request):
         logger.error(f"ORCID authorization error: {error} - {error_description}")
         
         # Redirect to frontend with error
-        frontend_url = config('FRONTEND_URL', default='http://localhost:3000')
+        frontend_url = config('FRONTEND_URL', default='http://localhost:8080')
         return redirect(f"{frontend_url}/auth/error?error={error}&description={error_description}")
     
     # Get authorization code
@@ -102,7 +102,7 @@ def oauth_callback(request):
     
     if not code:
         logger.error("No authorization code received from ORCID")
-        frontend_url = config('FRONTEND_URL', default='http://localhost:3000')
+        frontend_url = config('FRONTEND_URL', default='http://localhost:8080')
         return redirect(f"{frontend_url}/auth/error?error=no_code")
     
     try:
@@ -113,6 +113,8 @@ def oauth_callback(request):
         )
         
         logger.info(f"Successfully authenticated user with ORCID iD: {orcid_id}")
+        logger.info(f"Access Token: {access_token}")
+        logger.info(f"ORCID ID: {orcid_id}")
         
         # Here you would typically:
         # 1. Create or get user from database
@@ -126,12 +128,12 @@ def oauth_callback(request):
         request.session['orcid_name'] = token_response.get('name', '')
         
         # Redirect to frontend with success
-        frontend_url = config('FRONTEND_URL', default='http://localhost:3000')
+        frontend_url = config('FRONTEND_URL', default='http://localhost:8080')
         return redirect(f"{frontend_url}/auth/success?orcid_id={orcid_id}")
         
     except Exception as e:
         logger.error(f"Failed to exchange authorization code: {str(e)}")
-        frontend_url = config('FRONTEND_URL', default='http://localhost:3000')
+        frontend_url = config('FRONTEND_URL', default='http://localhost:8080')
         return redirect(f"{frontend_url}/auth/error?error=token_exchange_failed")
 
 @require_http_methods(["GET"])
