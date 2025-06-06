@@ -35,6 +35,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:8080",  # React dev server
     "http://127.0.0.1:8080",
     "https://orcid-project-aidentro.vercel.app",  # Vercel production
+    "https://aidentro.vercel.app",  # Alternative Vercel URL
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -46,7 +47,7 @@ CSRF_TRUSTED_ORIGINS = [
     "https://orcid-project-aidentro.vercel.app",
     "http://localhost:8080",
     "http://127.0.0.1:8080",
-    "aidentro.vercel.app"
+    "https://aidentro.vercel.app"
 ]
 
 CORS_ALLOW_METHODS = [
