@@ -626,3 +626,127 @@ class ORCIDAPIClient:
         
         return formatted_results
 
+    def get_personal_details(self) -> Dict:
+        """
+        Get a researcher's personal details (name, biography, etc.).
+        
+        Returns:
+            Personal details dictionary
+        """
+        clean_orcid_id = self._clean_orcid_id(self.orcid_id)
+        url = f"{self.api_base_url}/{clean_orcid_id}/personal-details"
+        
+        return self._make_request(url)
+    
+    def get_emails(self) -> Dict:
+        """
+        Get a researcher's email addresses.
+        
+        Returns:
+            Email addresses dictionary
+        """
+        clean_orcid_id = self._clean_orcid_id(self.orcid_id)
+        url = f"{self.api_base_url}/{clean_orcid_id}/emails"
+        
+        return self._make_request(url)
+    
+    def get_user_identity_info(self) -> Dict:
+        """
+        Get essential user identity information from ORCID record.
+        
+        Returns:
+            Dictionary containing:
+            - name: Full name (given + family or credit name)
+            - current_affiliation: Main current employment
+            - email: Primary email address
+            - location: Current work location
+        """
+        try:
+            # 1. Get Name from personal-details
+            personal_details = self.get_personal_details()
+            name_info = personal_details.get('name', {})
+            
+            # Prefer credit-name if available, otherwise combine given + family names
+            if name_info.get('credit-name') and name_info['credit-name'].get('value'):
+                full_name = name_info['credit-name']['value']
+            else:
+                given_names = name_info.get('given-names', {}).get('value', '') if name_info.get('given-names') else ''
+                family_name = name_info.get('family-name', {}).get('value', '') if name_info.get('family-name') else ''
+                full_name = f"{given_names} {family_name}".strip()
+            
+            # 2. Get Primary Email
+            try:
+                emails_data = self.get_emails()
+                primary_email = None
+                
+                for email in emails_data.get('email', []):
+                    if email.get('primary', False):
+                        primary_email = email.get('email')
+                        break
+                
+                # If no primary email found, take the first available email
+                if not primary_email and emails_data.get('email'):
+                    primary_email = emails_data['email'][0].get('email')
+                    
+            except Exception:
+                primary_email = None
+            
+            # 3. Get Current Affiliation (employment with no end-date)
+            try:
+                employments = self.get_researcher_employments()
+                current_affiliation = None
+                current_location = None
+                
+                for group in employments.get('affiliation-group', []):
+                    for summary_wrapper in group.get('summaries', []):
+                        # The actual employment data is inside 'employment-summary'
+                        summary = summary_wrapper.get('employment-summary', {})
+                        
+                        # Check if this is a current employment (no end-date)
+                        if not summary.get('end-date'):
+                            organization = summary.get('organization', {})
+                            current_affiliation = organization.get('name')
+                            
+                            # Get location info
+                            address = organization.get('address', {})
+                            location_parts = []
+                            if address.get('city'):
+                                location_parts.append(address['city'])
+                            if address.get('region'):
+                                location_parts.append(address['region'])
+                            if address.get('country'):
+                                location_parts.append(address['country'])
+                            
+                            current_location = ', '.join(location_parts) if location_parts else None
+                            break
+                    
+                    if current_affiliation:
+                        break
+                        
+            except Exception:
+                current_affiliation = None
+                current_location = None
+            
+            # Build user identity info
+            user_identity = {
+                'orcid_id': self.orcid_id,
+                'name': full_name or 'Name not available',
+                'email': primary_email,
+                'current_affiliation': current_affiliation,
+                'current_location': current_location,
+                'profile_url': f"https://orcid.org/{self._clean_orcid_id(self.orcid_id)}"
+            }
+            
+            return user_identity
+            
+        except Exception as e:
+            # Return basic info even if detailed lookup fails
+            return {
+                'orcid_id': self.orcid_id,
+                'name': 'Unable to retrieve name',
+                'email': None,
+                'current_affiliation': None,
+                'current_location': None,
+                'profile_url': f"https://orcid.org/{self._clean_orcid_id(self.orcid_id)}",
+                'error': str(e)
+            }

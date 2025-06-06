@@ -7,6 +7,12 @@ from django.shortcuts import redirect
 from decouple import config
 from .oauth_services import exchange_authorization_code
 import logging
+import json
+import requests
+from django.views.decorators.csrf import csrf_exempt
+
+# Add import for our ORCID API client
+from integrations.orcid_api import ORCIDAPIClient
 
 logger = logging.getLogger(__name__)
 
@@ -156,4 +162,84 @@ def oauth_status(request):
         }
     }
     
-    return JsonResponse(config_status) 
+    return JsonResponse(config_status)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_user_identity(request):
+    """
+    Get user identity information from ORCID API
+    Expects orcid_id as a query parameter
+    """
+    try:
+        orcid_id = request.GET.get('orcid_id')
+        
+        if not orcid_id:
+            return JsonResponse({
+                'error': 'orcid_id parameter is required'
+            }, status=400)
+        
+        # Create ORCID API client (no access token needed for public API)
+        client = ORCIDAPIClient(access_token="", orcid_id=orcid_id)
+        
+        # Get user identity information
+        user_identity = client.get_user_identity_info()
+        
+        logger.info(f"Successfully retrieved user identity for ORCID ID: {orcid_id}")
+        
+        return JsonResponse({
+            'success': True,
+            'user_identity': user_identity
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting user identity: {str(e)}")
+        return JsonResponse({
+            'error': 'Failed to retrieve user identity',
+            'details': str(e)
+        }, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_current_user_identity(request):
+    """
+    Get current authenticated user's identity information
+    Uses ORCID ID from session if available
+    """
+    try:
+        # Check if user has ORCID ID in session
+        orcid_id = request.session.get('orcid_id')
+        
+        if not orcid_id:
+            return JsonResponse({
+                'error': 'No authenticated ORCID user found',
+                'authenticated': False
+            }, status=401)
+        
+        # Create ORCID API client
+        access_token = request.session.get('access_token', '')
+        client = ORCIDAPIClient(access_token=access_token, orcid_id=orcid_id)
+        
+        # Get user identity information
+        user_identity = client.get_user_identity_info()
+        
+        # Add session info
+        user_identity['authenticated'] = True
+        user_identity['session_data'] = {
+            'access_token_available': bool(access_token),
+            'session_orcid_id': orcid_id
+        }
+        
+        logger.info(f"Successfully retrieved current user identity for ORCID ID: {orcid_id}")
+        
+        return JsonResponse({
+            'success': True,
+            'user_identity': user_identity
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting current user identity: {str(e)}")
+        return JsonResponse({
+            'error': 'Failed to retrieve current user identity',
+            'details': str(e)
+        }, status=500) 

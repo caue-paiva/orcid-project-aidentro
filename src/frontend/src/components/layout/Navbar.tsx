@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import UserInfoModal from "@/components/UserInfoModal";
+import { getCurrentUserIdentity, UserIdentity } from "@/api/orcidApi";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +23,8 @@ import { currentUser } from "@/data/mockData";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [userIdentity, setUserIdentity] = useState<UserIdentity | null>(null);
   const isLoggedIn = !!currentUser?.isCompleteProfile;
 
   const mainNavItems = [
@@ -42,6 +46,22 @@ const Navbar = () => {
     { name: "Tutorials", href: "/resources/tutorials" },
     { name: "Templates", href: "/resources/templates" },
   ];
+
+  // Load user identity on component mount
+  useEffect(() => {
+    const loadUserIdentity = async () => {
+      if (isLoggedIn) {
+        try {
+          const identity = await getCurrentUserIdentity();
+          setUserIdentity(identity);
+        } catch (error) {
+          // Silently handle error - user can still click to try again
+        }
+      }
+    };
+
+    loadUserIdentity();
+  }, [isLoggedIn]);
 
   return (
     <nav className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sticky top-0 z-50">
@@ -132,12 +152,51 @@ const Navbar = () => {
                 >
                   <Bell className="h-5 w-5" />
                 </Link>
-                <Link to="/dashboard" className="hidden sm:flex">
-                  <Button variant="ghost" className="space-x-2 py-1 px-3">
+                <div className="hidden sm:flex items-center space-x-2">
+                  {/* User Profile Modal Button */}
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    className="p-2"
+                    onClick={async () => {
+                      // Always try to fetch fresh identity if logged in, or set default if not
+                      try {
+                        const identity = await getCurrentUserIdentity();
+                        setUserIdentity(identity || {
+                          orcid_id: 'Unknown',
+                          name: 'Unknown User',
+                          email: undefined,
+                          current_affiliation: undefined,
+                          current_location: undefined,
+                          profile_url: 'https://orcid.org',
+                          authenticated: false
+                        });
+                      } catch (error) {
+                        // Set default values for non-logged-in users
+                        setUserIdentity({
+                          orcid_id: 'Unknown',
+                          name: 'Unknown User',
+                          email: undefined,
+                          current_affiliation: undefined,
+                          current_location: undefined,
+                          profile_url: 'https://orcid.org',
+                          authenticated: false
+                        });
+                      }
+                      setIsUserModalOpen(true);
+                    }}
+                  >
                     <User className="h-5 w-5" />
-                    <span className="hidden md:block">Dashboard</span>
                   </Button>
-                </Link>
+                  
+                  {/* Dashboard Link Button */}
+                  <Link to="/dashboard">
+                    <Button variant="ghost" className="py-1 px-3">
+                      <span className="hidden md:block">Dashboard</span>
+                      <span className="md:hidden">Dash</span>
+                    </Button>
+                  </Link>
+                </div>
               </>
             ) : (
               <>
@@ -210,7 +269,18 @@ const Navbar = () => {
           </div>
         )}
       </div>
-    </nav>
+
+            {/* User Info Modal */}
+      {isUserModalOpen && userIdentity && (
+        <UserInfoModal
+          isOpen={isUserModalOpen}
+          onClose={() => setIsUserModalOpen(false)}
+          userIdentity={userIdentity}
+        />
+      )}
+
+
+      </nav>
   );
 };
 

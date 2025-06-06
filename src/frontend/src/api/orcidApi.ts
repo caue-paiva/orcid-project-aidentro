@@ -13,6 +13,25 @@ export interface OrcidError {
   description?: string;
 }
 
+export interface UserIdentity {
+  orcid_id: string;
+  name: string;
+  email?: string;
+  current_affiliation?: string;
+  current_location?: string;
+  profile_url: string;
+  authenticated?: boolean;
+  session_data?: {
+    access_token_available: boolean;
+    session_orcid_id: string;
+  };
+}
+
+export interface UserIdentityResponse {
+  success: boolean;
+  user_identity: UserIdentity;
+}
+
 /**
  * Initiates ORCID OAuth flow by redirecting to Django backend
  */
@@ -94,6 +113,70 @@ export const logout = async () => {
   } catch (error) {
     console.error('Failed to logout:', error);
     return false;
+  }
+};
+
+/**
+ * Get user identity information from ORCID API by ORCID ID
+ */
+export const getUserIdentity = async (orcidId: string): Promise<UserIdentity> => {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/user-identity/?orcid_id=${encodeURIComponent(orcidId)}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data: UserIdentityResponse = await response.json();
+    
+    if (!data.success) {
+      throw new Error('Failed to retrieve user identity');
+    }
+
+    return data.user_identity;
+  } catch (error) {
+    console.error('Failed to get user identity:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get current authenticated user's identity information
+ */
+export const getCurrentUserIdentity = async (): Promise<UserIdentity | null> => {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/current-user-identity/`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    });
+
+    if (response.status === 401) {
+      return null; // Not authenticated
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data: UserIdentityResponse = await response.json();
+    
+    if (!data.success) {
+      throw new Error('Failed to retrieve current user identity');
+    }
+
+    return data.user_identity;
+  } catch (error) {
+    console.error('Failed to get current user identity:', error);
+    return null;
   }
 };
 
