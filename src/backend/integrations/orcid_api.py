@@ -11,6 +11,9 @@ import json
 from typing import Dict, List, Optional, Union
 from decouple import config
 import urllib3
+from datetime import datetime
+from collections import defaultdict
+import time
 
 
 class ORCIDAPIClient:
@@ -748,5 +751,259 @@ class ORCIDAPIClient:
                 'current_affiliation': None,
                 'current_location': None,
                 'profile_url': f"https://orcid.org/{self._clean_orcid_id(self.orcid_id)}",
+                'error': str(e)
+            }
+
+    def get_citation_analysis(self, years_back: int = 5, max_publications: int = 20, timeout_per_request: int = 10) -> Dict:
+        """
+        Get citation analysis data showing citations per year and cumulative totals.
+        
+        Args:
+            years_back: Number of years back to analyze (default 5)
+            max_publications: Maximum number of publications to process (default 20)
+            timeout_per_request: Timeout in seconds for each API request (default 10)
+            
+        Returns:
+            Dictionary containing:
+            - yearly_data: List of {year, citations, cumulative_citations}
+            - total_citations: Total citation count
+            - total_publications: Total number of publications with DOIs
+            - publications_with_citations: Number of publications that have been cited
+        """
+        from .crossref_api import PublicationAPIClient
+        
+        analysis_start_time = time.time()
+        max_analysis_time = 45  # Maximum time for entire analysis (45 seconds)
+        
+        try:
+            # Get researcher's works
+            print("🔄 Fetching researcher works from ORCID...")
+            works_data = self.get_researcher_works()
+            crossref_client = PublicationAPIClient()
+            
+            # Extract DOIs from works
+            publications_with_dois = []
+            current_year = datetime.now().year
+            start_year = current_year - years_back + 1
+            
+            for group in works_data.get('group', []):
+                for work_summary in group.get('work-summary', []):
+                    # Extract DOIs from external identifiers
+                    external_ids = work_summary.get('external-ids', {}).get('external-id', [])
+                    dois = []
+                    
+                    for ext_id in external_ids:
+                        if ext_id.get('external-id-type') == 'doi':
+                            dois.append(ext_id.get('external-id-value'))
+                    
+                    # Get publication year
+                    pub_date = work_summary.get('publication-date')
+                    pub_year = None
+                    if pub_date and pub_date.get('year'):
+                        pub_year = int(pub_date['year']['value'])
+                    
+                    # Store publication info with DOIs
+                    if dois:
+                        for doi in dois:
+                            publications_with_dois.append({
+                                'doi': doi,
+                                'title': work_summary.get('title', {}).get('title', {}).get('value', 'Unknown Title'),
+                                'publication_year': pub_year,
+                                'journal': work_summary.get('journal-title', {}).get('value') if work_summary.get('journal-title') else None
+                            })
+            
+            # Limit publications to prevent timeouts
+            if len(publications_with_dois) > max_publications:
+                print(f"⚠️  Limiting analysis to {max_publications} publications (found {len(publications_with_dois)})")
+                # Sort by publication year (newest first) and take the most recent
+                publications_with_dois.sort(key=lambda x: x['publication_year'] or 0, reverse=True)
+                publications_with_dois = publications_with_dois[:max_publications]
+            
+            print(f"📊 Analyzing {len(publications_with_dois)} publications with DOIs")
+            
+            # Get citation data for each publication
+            citations_by_year = defaultdict(int)
+            total_citations = 0
+            publications_with_citations = 0
+            successful_lookups = 0
+            failed_lookups = 0
+            
+            for i, pub in enumerate(publications_with_dois):
+                # Check if we're running out of time
+                elapsed_time = time.time() - analysis_start_time
+                if elapsed_time > max_analysis_time:
+                    print(f"⏰ Analysis timeout reached ({elapsed_time:.1f}s), stopping at {i+1}/{len(publications_with_dois)} publications")
+                    break
+                
+                try:
+                    # Get citation count from CrossRef with timeout
+                    print(f"🔍 Looking up citations for DOI {i+1}/{len(publications_with_dois)}: {pub['doi'][:50]}...")
+                    
+                    start_request = time.time()
+                    citation_info = crossref_client.get_publication_citations(pub['doi'])
+                    request_time = time.time() - start_request
+                    
+                    citation_count = citation_info.get('citation_count', 0)
+                    
+                    if citation_count > 0:
+                        publications_with_citations += 1
+                        total_citations += citation_count
+                        
+                        # For simplicity, attribute all citations to the publication year
+                        pub_year = pub['publication_year']
+                        if pub_year and pub_year >= start_year:
+                            citations_by_year[pub_year] += citation_count
+                        
+                        print(f"  ✅ Found {citation_count} citations ({request_time:.1f}s)")
+                    else:
+                        print(f"  📄 No citations found ({request_time:.1f}s)")
+                    
+                    successful_lookups += 1
+                    
+                    # Brief pause to avoid overwhelming APIs
+                    time.sleep(0.1)
+                    
+                except Exception as e:
+                    failed_lookups += 1
+                    print(f"  ❌ Failed to get citations for DOI {pub['doi']}: {str(e)[:100]}")
+                    # Don't break the entire analysis for one failed DOI
+                    continue
+            
+            total_analysis_time = time.time() - analysis_start_time
+            print(f"📈 Analysis completed in {total_analysis_time:.1f}s:")
+            print(f"  • Successful lookups: {successful_lookups}/{len(publications_with_dois)}")
+            print(f"  • Failed lookups: {failed_lookups}")
+            print(f"  • Total citations found: {total_citations}")
+            
+            # Build yearly data with cumulative totals
+            yearly_data = []
+            cumulative_total = 0
+            
+            for year in range(start_year, current_year + 1):
+                year_citations = citations_by_year.get(year, 0)
+                cumulative_total += year_citations
+                
+                yearly_data.append({
+                    'year': year,
+                    'citations': year_citations,
+                    'cumulative_citations': cumulative_total
+                })
+            
+            # If no citation data found, generate minimal data structure
+            if total_citations == 0:
+                print("📊 No citation data found, generating minimal structure")
+                yearly_data = []
+                for year in range(start_year, current_year + 1):
+                    yearly_data.append({
+                        'year': year,
+                        'citations': 0,
+                        'cumulative_citations': 0
+                    })
+            
+            return {
+                'yearly_data': yearly_data,
+                'total_citations': total_citations,
+                'total_publications': len(publications_with_dois),
+                'publications_with_citations': publications_with_citations,
+                'successful_lookups': successful_lookups,
+                'failed_lookups': failed_lookups,
+                'analysis_period': f"{start_year}-{current_year}",
+                'analysis_time_seconds': round(total_analysis_time, 1),
+                'limited_analysis': len(publications_with_dois) >= max_publications
+            }
+            
+        except Exception as e:
+            error_time = time.time() - analysis_start_time
+            print(f"❌ Error in citation analysis after {error_time:.1f}s: {e}")
+            # Return empty structure on error
+            current_year = datetime.now().year
+            start_year = current_year - years_back + 1
+            
+            yearly_data = []
+            for year in range(start_year, current_year + 1):
+                yearly_data.append({
+                    'year': year,
+                    'citations': 0,
+                    'cumulative_citations': 0
+                })
+            
+            return {
+                'yearly_data': yearly_data,
+                'total_citations': 0,
+                'total_publications': 0,
+                'publications_with_citations': 0,
+                'successful_lookups': 0,
+                'failed_lookups': 0,
+                'analysis_period': f"{start_year}-{current_year}",
+                'analysis_time_seconds': round(error_time, 1),
+                'error': str(e)
+            }
+
+    def get_citation_metrics_for_dashboard(self) -> Dict:
+        """
+        Get citation metrics formatted for dashboard display.
+        
+        Returns:
+            Dictionary containing metrics for dashboard cards and charts
+        """
+        try:
+            citation_analysis = self.get_citation_analysis()
+            yearly_data = citation_analysis['yearly_data']
+            
+            # Calculate metrics
+            total_citations = citation_analysis['total_citations']
+            current_year = datetime.now().year
+            
+            # Get current year and previous year citations for trend calculation
+            current_year_citations = 0
+            previous_year_citations = 0
+            
+            for data_point in yearly_data:
+                if data_point['year'] == current_year:
+                    current_year_citations = data_point['citations']
+                elif data_point['year'] == current_year - 1:
+                    previous_year_citations = data_point['citations']
+            
+            # Calculate trend
+            citation_trend = None
+            if previous_year_citations > 0:
+                trend_percentage = round(((current_year_citations - previous_year_citations) / previous_year_citations) * 100, 1)
+                citation_trend = {
+                    'value': abs(trend_percentage),
+                    'isPositive': trend_percentage >= 0
+                }
+            
+            # Calculate average citations per year (excluding years with 0 citations)
+            years_with_citations = [dp for dp in yearly_data if dp['citations'] > 0]
+            avg_citations_per_year = round(total_citations / len(years_with_citations)) if years_with_citations else 0
+            
+            # Get h-index approximation (simplified: number of publications with at least N citations)
+            # This is a rough approximation since we don't have per-publication citation counts
+            h_index_approx = min(citation_analysis['publications_with_citations'], 
+                               int(total_citations / max(citation_analysis['publications_with_citations'], 1)))
+            
+            return {
+                'total_citations': total_citations,
+                'citation_trend': citation_trend,
+                'avg_citations_per_year': avg_citations_per_year,
+                'h_index_approximation': h_index_approx,
+                'publications_count': citation_analysis['total_publications'],
+                'cited_publications_count': citation_analysis['publications_with_citations'],
+                'citation_chart_data': yearly_data,
+                'analysis_success': citation_analysis.get('error') is None
+            }
+            
+        except Exception as e:
+            print(f"Error getting citation metrics: {e}")
+            # Return empty metrics on error
+            return {
+                'total_citations': 0,
+                'citation_trend': None,
+                'avg_citations_per_year': 0,
+                'h_index_approximation': 0,
+                'publications_count': 0,
+                'cited_publications_count': 0,
+                'citation_chart_data': [],
+                'analysis_success': False,
                 'error': str(e)
             }

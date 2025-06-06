@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -15,6 +14,7 @@ import NotFound from "./pages/NotFound";
 import AuthSuccess from "./pages/AuthSuccess";
 import AuthError from "./pages/AuthError";
 import OrcidTest from "./pages/OrcidTest";
+import CitationTestDashboard from "./pages/CitationTestDashboard";
 
 const queryClient = new QueryClient();
 
@@ -38,8 +38,9 @@ const App = () => (
           <Route path="/auth/success" element={<AuthSuccess />} />
           <Route path="/auth/error" element={<AuthError />} />
           
-          {/* Test route */}
+          {/* Test routes */}
           <Route path="/orcid-test" element={<OrcidTest />} />
+          <Route path="/citation-test" element={<CitationTestDashboard />} />
           
           {/* Placeholder routes to avoid 404s */}
           <Route path="/about" element={<Home />} />

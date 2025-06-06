@@ -206,6 +206,180 @@ def get_user_identity(request):
         }, status=500)
 
 @csrf_exempt
+@require_http_methods(["GET"])
+def get_citation_metrics(request):
+    """
+    Get citation metrics for dashboard display
+    Expects orcid_id as a query parameter
+    """
+    try:
+        orcid_id = request.GET.get('orcid_id')
+        
+        if not orcid_id:
+            return JsonResponse({
+                'error': 'orcid_id parameter is required'
+            }, status=400)
+        
+        # Create ORCID API client
+        client = ORCIDAPIClient(access_token="", orcid_id=orcid_id)
+        
+        # Get citation metrics for dashboard
+        citation_metrics = client.get_citation_metrics_for_dashboard()
+        
+        logger.info(f"Successfully retrieved citation metrics for ORCID ID: {orcid_id}")
+        
+        return JsonResponse({
+            'success': True,
+            'citation_metrics': citation_metrics
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting citation metrics: {str(e)}")
+        return JsonResponse({
+            'error': 'Failed to retrieve citation metrics',
+            'details': str(e)
+        }, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_citation_analysis(request):
+    """
+    Get detailed citation analysis data
+    Expects orcid_id as a query parameter
+    Optional: years_back parameter (default: 5)
+    """
+    try:
+        orcid_id = request.GET.get('orcid_id')
+        years_back = int(request.GET.get('years_back', 5))
+        
+        if not orcid_id:
+            return JsonResponse({
+                'error': 'orcid_id parameter is required'
+            }, status=400)
+        
+        # Create ORCID API client
+        client = ORCIDAPIClient(access_token="", orcid_id=orcid_id)
+        
+        # Get detailed citation analysis
+        citation_analysis = client.get_citation_analysis(years_back=years_back)
+        
+        logger.info(f"Successfully retrieved citation analysis for ORCID ID: {orcid_id}")
+        
+        return JsonResponse({
+            'success': True,
+            'citation_analysis': citation_analysis
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting citation analysis: {str(e)}")
+        return JsonResponse({
+            'error': 'Failed to retrieve citation analysis',
+            'details': str(e)
+        }, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def test_citation_analysis(request):
+    """
+    Test endpoint with hardcoded ORCID ID for quick testing
+    """
+    try:
+        # Hardcoded test ORCID ID
+        test_orcid_id = "0000-0003-1574-0784"
+        years_back = int(request.GET.get('years_back', 5))
+        max_publications = int(request.GET.get('max_publications', 10))  # Reduced default for faster testing
+        
+        logger.info(f"Starting citation analysis test - ORCID: {test_orcid_id}, years: {years_back}, max_pubs: {max_publications}")
+        
+        # Create ORCID API client
+        client = ORCIDAPIClient(access_token="", orcid_id=test_orcid_id)
+        
+        # Get user identity first (quick operation)
+        user_identity = client.get_user_identity_info()
+        logger.info(f"Retrieved user identity: {user_identity.get('name', 'Unknown')}")
+        
+        # Get citation analysis with limits to prevent timeout
+        citation_analysis = client.get_citation_analysis(
+            years_back=years_back, 
+            max_publications=max_publications,
+            timeout_per_request=8  # 8 second timeout per CrossRef request
+        )
+        
+        # Get citation metrics for dashboard
+        citation_metrics = client.get_citation_metrics_for_dashboard()
+        
+        logger.info(f"Citation analysis completed successfully in {citation_analysis.get('analysis_time_seconds', 0)}s")
+        logger.info(f"Found {citation_analysis['total_citations']} citations from {citation_analysis['successful_lookups']} successful lookups")
+        
+        return JsonResponse({
+            'success': True,
+            'test_orcid_id': test_orcid_id,
+            'user_identity': user_identity,
+            'citation_metrics': citation_metrics,
+            'citation_analysis': citation_analysis,
+            'performance': {
+                'analysis_time_seconds': citation_analysis.get('analysis_time_seconds', 0),
+                'publications_analyzed': citation_analysis['successful_lookups'],
+                'publications_found': citation_analysis['total_publications'],
+                'limited_analysis': citation_analysis.get('limited_analysis', False)
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in test citation analysis: {str(e)}")
+        return JsonResponse({
+            'error': 'Failed to retrieve test citation data',
+            'details': str(e),
+            'suggestions': [
+                'Check if backend server is running',
+                'Verify internet connectivity for ORCID/CrossRef APIs',
+                'Try reducing max_publications parameter',
+                'Check server logs for detailed error information'
+            ]
+        }, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def quick_citation_test(request):
+    """
+    Very quick citation test with minimal data for fast response
+    """
+    try:
+        test_orcid_id = "0000-0003-1574-0784"
+        
+        logger.info(f"Starting quick citation test for ORCID: {test_orcid_id}")
+        
+        # Create ORCID API client
+        client = ORCIDAPIClient(access_token="", orcid_id=test_orcid_id)
+        
+        # Get user identity only (no citation analysis)
+        user_identity = client.get_user_identity_info()
+        
+        # Get basic works info without citation counts
+        works_data = client.get_researcher_works()
+        total_works = len(works_data.get('group', []))
+        
+        logger.info(f"Quick test completed - found {total_works} works")
+        
+        return JsonResponse({
+            'success': True,
+            'test_orcid_id': test_orcid_id,
+            'user_identity': user_identity,
+            'basic_stats': {
+                'total_works': total_works,
+                'test_type': 'quick_test_no_citations'
+            },
+            'message': 'Quick test successful - user data retrieved without citation analysis'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in quick citation test: {str(e)}")
+        return JsonResponse({
+            'error': 'Failed to retrieve quick test data',
+            'details': str(e)
+        }, status=500)
+
+@csrf_exempt
 @require_http_methods(["GET", "OPTIONS"])
 def get_current_user_identity(request):
     """

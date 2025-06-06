@@ -27,36 +27,41 @@ class PublicationAPIClient:
             'User-Agent': user_agent or 'ORCID-Project/1.0 (mailto:your-email@example.com)'
         }
     
-    def _make_request(self, url, params=None):
+    def _make_request(self, url, params=None, timeout=10):
         """
-        Make HTTP request with SSL verification handling.
+        Make HTTP request with SSL verification handling and timeout.
         
         Args:
             url: Request URL
             params: Query parameters
+            timeout: Request timeout in seconds (default: 10)
             
         Returns:
             Response JSON data
         """
         try:
-            response = requests.get(url, headers=self.headers, params=params, verify=True)
+            response = requests.get(url, headers=self.headers, params=params, verify=True, timeout=timeout)
             response.raise_for_status()
             return response.json()
+        except requests.exceptions.Timeout:
+            print(f"⏰ Request timeout after {timeout}s for URL: {url}")
+            raise requests.RequestException(f"Request timeout after {timeout} seconds")
         except requests.exceptions.SSLError:
             # If SSL verification fails, try without verification (for testing environments)
             print("⚠️  SSL verification failed, retrying without verification...")
             # Disable SSL warnings for this request
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-            response = requests.get(url, headers=self.headers, params=params, verify=False)
+            response = requests.get(url, headers=self.headers, params=params, verify=False, timeout=timeout)
             response.raise_for_status()
             return response.json()
     
-    def get_publication_by_doi(self, doi: str) -> Dict:
+    def get_publication_by_doi(self, doi: str, timeout: int = 10) -> Dict:
         """
         Get publication metadata by DOI from CrossRef.
         
         Args:
             doi: DOI of the publication (with or without doi: prefix)
+            timeout: Request timeout in seconds (default: 10)
             
         Returns:
             Publication metadata dictionary
@@ -71,7 +76,7 @@ class PublicationAPIClient:
         url = f"{self.base_url}/works/{clean_doi}"
         
         try:
-            data = self._make_request(url)
+            data = self._make_request(url, timeout=timeout)
             return data.get('message', {})
             
         except requests.exceptions.HTTPError as e:
@@ -82,17 +87,18 @@ class PublicationAPIClient:
         except requests.exceptions.RequestException as e:
             raise requests.RequestException(f"API request failed: {e}")
     
-    def get_publication_formatted(self, doi: str) -> Dict:
+    def get_publication_formatted(self, doi: str, timeout: int = 10) -> Dict:
         """
         Get publication metadata formatted for easy use.
         
         Args:
             doi: DOI of the publication
+            timeout: Request timeout in seconds (default: 10)
             
         Returns:
             Formatted publication dictionary with common fields
         """
-        raw_data = self.get_publication_by_doi(doi)
+        raw_data = self.get_publication_by_doi(doi, timeout=timeout)
         
         # Extract and format common fields
         formatted = {
@@ -279,17 +285,18 @@ class PublicationAPIClient:
         publication = self.get_publication_by_doi(doi)
         return publication.get('reference', [])
     
-    def get_publication_citations(self, doi: str) -> Dict:
+    def get_publication_citations(self, doi: str, timeout: int = 10) -> Dict:
         """
         Get citation information for a publication.
         
         Args:
             doi: DOI of the publication
+            timeout: Request timeout in seconds (default: 10)
             
         Returns:
             Citation information dictionary
         """
-        publication = self.get_publication_by_doi(doi)
+        publication = self.get_publication_by_doi(doi, timeout=timeout)
         
         return {
             'doi': publication.get('DOI'),

@@ -16,7 +16,12 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from oauth.oauth_views import oauth_authorize, oauth_callback, oauth_status, get_user_identity, get_current_user_identity, debug_session, health_check, simple_test
+from oauth.oauth_views import (
+    oauth_authorize, oauth_callback, oauth_status, 
+    get_user_identity, get_current_user_identity, 
+    debug_session, health_check, simple_test,
+    get_citation_metrics, get_citation_analysis, test_citation_analysis, quick_citation_test
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -27,6 +32,11 @@ urlpatterns = [
     # User identity endpoints
     path('api/user-identity/', get_user_identity, name='get_user_identity'),
     path('api/current-user-identity/', get_current_user_identity, name='get_current_user_identity'),
+    # Citation analysis endpoints
+    path('api/citation-metrics/', get_citation_metrics, name='get_citation_metrics'),
+    path('api/citation-analysis/', get_citation_analysis, name='get_citation_analysis'),
+    path('api/test-citation-analysis/', test_citation_analysis, name='test_citation_analysis'),
+    path('api/quick-citation-test/', quick_citation_test, name='quick_citation_test'),
     # Debug endpoint
     path('api/debug-session/', debug_session, name='debug_session'),
     # Health check endpoint

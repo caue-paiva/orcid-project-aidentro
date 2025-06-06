@@ -1,4 +1,3 @@
-
 export interface Researcher {
   id: string;
   orcidId: string;
@@ -52,4 +51,35 @@ export interface ResearcherSearchParams {
   expertise?: string;
   page?: number;
   limit?: number;
+}
+
+export interface CitationData {
+  year: number;
+  citations: number;
+  cumulativeCitations: number;
+}
+
+export interface CitationMetrics {
+  total_citations: number;
+  citation_trend?: {
+    value: number;
+    isPositive: boolean;
+  };
+  avg_citations_per_year: number;
+  h_index_approximation: number;
+  publications_count: number;
+  cited_publications_count: number;
+  citation_chart_data: CitationData[];
+  analysis_success: boolean;
+  error?: string;
+}
+
+export interface CitationAnalysis {
+  yearlyData: CitationData[];
+  totalCitations: number;
+  totalPublications: number;
+  publicationsWithCitations: number;
+  successfulLookups: number;
+  analysisPeriod: string;
+  error?: string;
 }
