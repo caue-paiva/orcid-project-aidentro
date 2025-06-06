@@ -50,7 +50,7 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 # CSRF configuration for cross-origin requests
 CSRF_COOKIE_SAMESITE = 'None'
-CSRF_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = not DEBUG
 CSRF_TRUSTED_ORIGINS = [
     "https://orcid-project-aidentro.vercel.app",
     "http://localhost:8080",
