@@ -39,9 +39,9 @@ const Dashboard = () => {
     fetchUserIdentity();
   }, []);
 
-  // Determine display name - prefer ORCID name, fallback to mock data
-  const displayName = userIdentity?.name || currentUser.name;
+  // Determine display name and authentication status
   const isAuthenticated = userIdentity?.authenticated || false;
+  const displayName = isAuthenticated ? userIdentity.name : 'Guest';
 
   return (
     <Layout>
@@ -57,7 +57,7 @@ const Dashboard = () => {
                 </div>
               ) : userError ? (
                 <p className="text-gray-600">
-                  Welcome back, {currentUser.name.split(" ")[0]}
+                  Welcome, Guest
                 </p>
               ) : (
                 <div className="space-y-1">
