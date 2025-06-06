@@ -88,7 +88,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'corsheaders',
-    # adicione aqui os seus apps
+    'config',  # Main project app with models
 ]
 
 MIDDLEWARE = [
@@ -185,6 +185,9 @@ if not DEBUG:
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Custom User Model
+AUTH_USER_MODEL = 'config.User'
 
 # Logging Configuration
 LOGGING = {
