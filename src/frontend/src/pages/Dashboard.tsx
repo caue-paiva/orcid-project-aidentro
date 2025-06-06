@@ -9,7 +9,7 @@ import CitationChart from "@/components/dashboard/CitationChart";
 import UserProfile from "@/components/UserProfile";
 import UserInfoModal from "@/components/UserInfoModal";
 import { currentUser, getPublicationsByResearcherId } from "@/data/mockData";
-import { getCurrentUserIdentity, UserIdentity } from "@/api/orcidApi";
+import { getCurrentUserIdentity, UserIdentity, debugSession, healthCheck } from "@/api/orcidApi";
 import { Book, FilePlus, Users, Award, BookUser, Lightbulb, User } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -42,6 +42,30 @@ const Dashboard = () => {
   // Determine display name and authentication status
   const isAuthenticated = userIdentity?.authenticated || false;
   const displayName = isAuthenticated ? userIdentity.name : 'Guest';
+
+  // Health check function
+  const handleHealthCheck = async () => {
+    try {
+      const healthData = await healthCheck();
+      console.log('Health Check Data:', healthData);
+      alert(JSON.stringify(healthData, null, 2));
+    } catch (error) {
+      console.error('Health check failed:', error);
+      alert('Health check failed: ' + error);
+    }
+  };
+
+  // Debug function to check session
+  const handleDebugSession = async () => {
+    try {
+      const sessionData = await debugSession();
+      console.log('Session Debug Data:', sessionData);
+      alert(JSON.stringify(sessionData, null, 2));
+    } catch (error) {
+      console.error('Debug session failed:', error);
+      alert('Debug session failed: ' + error);
+    }
+  };
 
   return (
     <Layout>
@@ -91,6 +115,20 @@ const Dashboard = () => {
             </div>
           </div>
           <div className="mt-4 md:mt-0 flex gap-2">
+            <Button
+              variant="outline"
+              className="flex items-center"
+              onClick={handleHealthCheck}
+            >
+              Health Check
+            </Button>
+            <Button
+              variant="outline"
+              className="flex items-center"
+              onClick={handleDebugSession}
+            >
+              Debug Session
+            </Button>
             <Button
               variant="outline"
               className="flex items-center"

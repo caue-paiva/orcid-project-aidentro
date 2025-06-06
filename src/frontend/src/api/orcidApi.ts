@@ -181,6 +181,54 @@ export const getCurrentUserIdentity = async (): Promise<UserIdentity | null> => 
 };
 
 /**
+ * Health check function to test basic connectivity
+ */
+export const healthCheck = async () => {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/health/`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to check health:', error);
+    throw error;
+  }
+};
+
+/**
+ * Debug function to check session data
+ */
+export const debugSession = async () => {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/debug-session/`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to debug session:', error);
+    throw error;
+  }
+};
+
+/**
  * Utility function to parse URL parameters (for handling auth callbacks)
  */
 export const parseUrlParams = (url: string = window.location.href): Record<string, string> => {

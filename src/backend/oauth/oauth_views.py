@@ -207,17 +207,30 @@ def get_current_user_identity(request):
     Uses ORCID ID from session if available
     """
     try:
+        # Debug: Log request details
+        logger.info(f"Request from: {request.META.get('HTTP_ORIGIN', 'Unknown origin')}")
+        logger.info(f"Request cookies: {request.COOKIES}")
+        logger.info(f"Session key: {request.session.session_key}")
+        logger.info(f"Session data: {dict(request.session)}")
+        
         # Check if user has ORCID ID in session
         orcid_id = request.session.get('orcid_id')
         
         if not orcid_id:
+            logger.info(f"No ORCID ID found in session. Session keys: {list(request.session.keys())}")
             return JsonResponse({
                 'error': 'No authenticated ORCID user found',
-                'authenticated': False
+                'authenticated': False,
+                'debug_info': {
+                    'session_key': request.session.session_key,
+                    'session_keys': list(request.session.keys()),
+                    'has_session_data': bool(dict(request.session)),
+                    'origin': request.META.get('HTTP_ORIGIN', 'Unknown')
+                }
             }, status=401)
         
         # Create ORCID API client
-        access_token = request.session.get('access_token', '')
+        access_token = request.session.get('orcid_access_token', '')
         client = ORCIDAPIClient(access_token=access_token, orcid_id=orcid_id)
         
         # Get user identity information
@@ -242,4 +255,36 @@ def get_current_user_identity(request):
         return JsonResponse({
             'error': 'Failed to retrieve current user identity',
             'details': str(e)
-        }, status=500) 
+        }, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def debug_session(request):
+    """
+    Debug endpoint to check session data
+    """
+    return JsonResponse({
+        'session_data': dict(request.session),
+        'session_keys': list(request.session.keys()),
+        'has_orcid_id': 'orcid_id' in request.session,
+        'has_access_token': 'orcid_access_token' in request.session,
+        'session_key': request.session.session_key,
+        'cookies': dict(request.COOKIES),
+        'origin': request.META.get('HTTP_ORIGIN', 'Unknown'),
+        'user_agent': request.META.get('HTTP_USER_AGENT', 'Unknown'),
+    })
+
+@csrf_exempt  
+@require_http_methods(["GET"])
+def health_check(request):
+    """
+    Simple health check endpoint
+    """
+    from django.conf import settings
+    return JsonResponse({
+        'status': 'ok',
+        'debug': settings.DEBUG,
+        'allowed_hosts': settings.ALLOWED_HOSTS,
+        'cors_allow_all_origins': getattr(settings, 'CORS_ALLOW_ALL_ORIGINS', False),
+        'cors_allowed_origins': getattr(settings, 'CORS_ALLOWED_ORIGINS', []),
+    }) 

@@ -16,7 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from oauth.oauth_views import oauth_authorize, oauth_callback, oauth_status, get_user_identity, get_current_user_identity
+from oauth.oauth_views import oauth_authorize, oauth_callback, oauth_status, get_user_identity, get_current_user_identity, debug_session, health_check
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -27,4 +27,8 @@ urlpatterns = [
     # User identity endpoints
     path('api/user-identity/', get_user_identity, name='get_user_identity'),
     path('api/current-user-identity/', get_current_user_identity, name='get_current_user_identity'),
+    # Debug endpoint
+    path('api/debug-session/', debug_session, name='debug_session'),
+    # Health check endpoint
+    path('api/health/', health_check, name='health_check'),
 ]

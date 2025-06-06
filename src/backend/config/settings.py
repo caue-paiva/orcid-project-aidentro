@@ -39,15 +39,34 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
-# For development, you can also use:
+# CSRF configuration for cross-origin requests
+CSRF_COOKIE_SAMESITE = 'None'
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_TRUSTED_ORIGINS = [
+    "https://orcid-project-aidentro.vercel.app",
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "aidentro.vercel.app"
+]
 
-CORS_ALLOW_ALL_ORIGINS = True
-
-CORLS_ALLOW_METHODS = [
+CORS_ALLOW_METHODS = [
     "DELETE",
     "PUT",
     "POST",
     "GET",
+    "OPTIONS",
+]
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
 ]
 
 # Application definition
