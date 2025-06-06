@@ -235,7 +235,7 @@ const Dashboard = () => {
         {userIdentity && (
           <div className="mt-8">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">ORCID Profile</h2>
-            <UserProfile />
+            <UserProfile userIdentity={userIdentity} />
           </div>
         )}
 

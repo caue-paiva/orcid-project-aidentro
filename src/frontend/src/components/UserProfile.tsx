@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { getCurrentUserIdentity, getUserIdentity, UserIdentity } from '../api/orcidApi';
+import { getStoredOrcidId, isOrcidAuthenticated } from '../utils/orcidAuth';
 
 interface UserProfileProps {
   orcidId?: string; // Optional: if provided, fetch specific user; otherwise get current user
+  userIdentity?: UserIdentity; // Optional: if provided, use this data directly without fetching
 }
 
-const UserProfile: React.FC<UserProfileProps> = ({ orcidId }) => {
+const UserProfile: React.FC<UserProfileProps> = ({ orcidId, userIdentity: providedUserIdentity }) => {
   const [userIdentity, setUserIdentity] = useState<UserIdentity | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -18,12 +20,21 @@ const UserProfile: React.FC<UserProfileProps> = ({ orcidId }) => {
 
         let identity: UserIdentity | null = null;
 
-        if (orcidId) {
+        if (providedUserIdentity) {
+          // Use provided user identity directly
+          identity = providedUserIdentity;
+        } else if (orcidId) {
           // Fetch specific user by ORCID ID
           identity = await getUserIdentity(orcidId);
         } else {
-          // Fetch current authenticated user
-          identity = await getCurrentUserIdentity();
+          // Fetch current authenticated user using stored ORCID ID
+          const storedOrcidId = getStoredOrcidId();
+          if (storedOrcidId && isOrcidAuthenticated()) {
+            identity = await getUserIdentity(storedOrcidId);
+            identity.authenticated = true; // Mark as authenticated since we have stored credentials
+          } else {
+            identity = null; // No stored ORCID ID found
+          }
         }
 
         setUserIdentity(identity);
@@ -35,7 +46,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ orcidId }) => {
     };
 
     fetchUserIdentity();
-  }, [orcidId]);
+  }, [orcidId, providedUserIdentity]);
 
   if (loading) {
     return (
