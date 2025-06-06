@@ -1,4 +1,3 @@
-
 import { Link } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -9,10 +8,14 @@ import CitationChart from "@/components/dashboard/CitationChart";
 import UserProfile from "@/components/UserProfile";
 import UserInfoModal from "@/components/UserInfoModal";
 import { currentUser, getPublicationsByResearcherId } from "@/data/mockData";
-import { getCurrentUserIdentity, getUserIdentity, UserIdentity, debugSession, healthCheck } from "@/api/orcidApi";
+import { getCurrentUserIdentity, getUserIdentity, UserIdentity, debugSession, healthCheck, getCitationMetrics } from "@/api/orcidApi";
 import { getStoredOrcidId, isOrcidAuthenticated, clearOrcidAuth } from "@/utils/orcidAuth";
-import { Book, FilePlus, Users, Award, BookUser, Lightbulb, User } from "lucide-react";
+import { CitationMetrics } from "@/types";
+import { Book, FilePlus, Users, Award, BookUser, Lightbulb, User, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
+
+// Demo ORCID ID for fallback data
+const DEMO_ORCID_ID = "0000-0003-1574-0784";
 
 const Dashboard = () => {
   const publications = getPublicationsByResearcherId(currentUser.id);
@@ -20,6 +23,15 @@ const Dashboard = () => {
   const [loadingUser, setLoadingUser] = useState(true);
   const [userError, setUserError] = useState<string | null>(null);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  
+  // Citation analysis state
+  const [citationMetrics, setCitationMetrics] = useState<CitationMetrics | null>(null);
+  const [loadingCitations, setLoadingCitations] = useState(false);
+  const [citationError, setCitationError] = useState<string | null>(null);
+
+  // Demo/fallback citation data state
+  const [demoCitationMetrics, setDemoCitationMetrics] = useState<CitationMetrics | null>(null);
+  const [loadingDemoData, setLoadingDemoData] = useState(false);
 
   // Fetch current user's ORCID identity
   useEffect(() => {
@@ -38,15 +50,23 @@ const Dashboard = () => {
           const identity = await getUserIdentity(storedOrcidId);
           identity.authenticated = true; // Mark as authenticated since we have stored credentials
           setUserIdentity(identity);
+          
+          // Auto-fetch citation data for authenticated users
+          fetchCitationData(storedOrcidId);
         } else {
-          console.log('No stored ORCID ID found');
+          console.log('No stored ORCID ID found, loading demo data');
           setUserIdentity(null);
+          
+          // Fetch demo citation data for non-authenticated users
+          fetchDemoCitationData();
         }
       } catch (error) {
         console.error("Failed to fetch user identity:", error);
         setUserError("Failed to load user profile");
         // Clear invalid stored auth on error
         clearOrcidAuth();
+        // Still try to load demo data
+        fetchDemoCitationData();
       } finally {
         setLoadingUser(false);
       }
@@ -55,14 +75,64 @@ const Dashboard = () => {
     fetchUserIdentity();
   }, []);
 
+  // Fetch citation analysis data for authenticated user
+  const fetchCitationData = async (orcidId?: string) => {
+    try {
+      setLoadingCitations(true);
+      setCitationError(null);
+      
+      const targetOrcidId = orcidId || getStoredOrcidId();
+      if (!targetOrcidId) {
+        throw new Error("No ORCID ID available for citation analysis");
+      }
+      
+      console.log("🔄 Fetching citation metrics for:", targetOrcidId);
+      const metrics = await getCitationMetrics(targetOrcidId);
+      console.log("✅ Citation metrics received:", metrics);
+      
+      setCitationMetrics(metrics);
+    } catch (error) {
+      console.error("❌ Error fetching citation data:", error);
+      setCitationError(error instanceof Error ? error.message : 'Failed to fetch citation data');
+    } finally {
+      setLoadingCitations(false);
+    }
+  };
+
+  // Fetch demo citation data from the demo ORCID ID
+  const fetchDemoCitationData = async () => {
+    try {
+      setLoadingDemoData(true);
+      
+      console.log("🔄 Fetching demo citation metrics for:", DEMO_ORCID_ID);
+      const metrics = await getCitationMetrics(DEMO_ORCID_ID);
+      console.log("✅ Demo citation metrics received:", metrics);
+      
+      setDemoCitationMetrics(metrics);
+    } catch (error) {
+      console.error("❌ Error fetching demo citation data:", error);
+      // On error, we'll just show empty data
+      setDemoCitationMetrics(null);
+    } finally {
+      setLoadingDemoData(false);
+    }
+  };
+
   // Determine display name and authentication status
   const isAuthenticated = userIdentity?.authenticated || false;
   const displayName = isAuthenticated ? userIdentity.name : 'Guest';
+
+  // Get the appropriate citation metrics to display
+  const displayMetrics = isAuthenticated ? citationMetrics : demoCitationMetrics;
+  const isLoadingMetrics = isAuthenticated ? loadingCitations : loadingDemoData;
 
   // Logout function
   const handleLogout = () => {
     clearOrcidAuth();
     setUserIdentity(null);
+    setCitationMetrics(null);
+    // Load demo data again
+    fetchDemoCitationData();
     // Optionally redirect or refresh
     window.location.reload();
   };
@@ -108,6 +178,16 @@ const Dashboard = () => {
     }
   };
 
+  // Function to refresh citation data
+  const handleRefreshCitations = () => {
+    const storedOrcidId = getStoredOrcidId();
+    if (storedOrcidId) {
+      fetchCitationData(storedOrcidId);
+    } else {
+      fetchDemoCitationData();
+    }
+  };
+
   return (
     <Layout>
       <div className="px-4 py-8 md:px-6 lg:px-8 max-w-7xl mx-auto">
@@ -121,16 +201,19 @@ const Dashboard = () => {
                   <p className="text-gray-600">Loading profile...</p>
                 </div>
               ) : userError ? (
-                <p className="text-gray-600">
-                  Welcome, Guest
-                </p>
+                <div className="space-y-1">
+                  <p className="text-gray-600">Welcome, Guest</p>
+                  <p className="text-sm text-gray-500">
+                    Viewing demo data from ORCID researcher • Connect your ORCID for personal metrics
+                  </p>
+                </div>
               ) : (
                 <div className="space-y-1">
                   <div className="flex items-center space-x-2">
                     <p className="text-gray-600">
                       Welcome back, {displayName.split(" ")[0]}
                     </p>
-                    {isAuthenticated && (
+                    {isAuthenticated ? (
                       <button
                         onClick={handleOpenUserModal}
                         className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors cursor-pointer"
@@ -138,12 +221,21 @@ const Dashboard = () => {
                         <User className="w-3 h-3 mr-1" />
                         ORCID Verified
                       </button>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        Demo Mode
+                      </span>
                     )}
                   </div>
-                  {userIdentity?.current_affiliation && (
+                  {isAuthenticated && userIdentity?.current_affiliation && (
                     <p className="text-sm text-gray-500">
                       {userIdentity.current_affiliation}
                       {userIdentity.current_location && ` • ${userIdentity.current_location}`}
+                    </p>
+                  )}
+                  {!isAuthenticated && (
+                    <p className="text-sm text-gray-500">
+                      Viewing demo data from ORCID researcher {DEMO_ORCID_ID} • Connect your ORCID for personal metrics
                     </p>
                   )}
                 </div>
@@ -151,6 +243,15 @@ const Dashboard = () => {
             </div>
           </div>
           <div className="mt-4 md:mt-0 flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleRefreshCitations}
+              disabled={isLoadingMetrics}
+              className="flex items-center"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingMetrics ? 'animate-spin' : ''}`} />
+              {isLoadingMetrics ? 'Loading...' : (isAuthenticated ? 'Refresh Citations' : 'Refresh Demo Data')}
+            </Button>
             <Button
               variant="outline"
               className="flex items-center"
@@ -199,37 +300,71 @@ const Dashboard = () => {
           </div>
         </div>
 
+        {/* Metrics Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <MetricsCard
             title="Total Publications"
-            value={currentUser.metrics.publications}
+            value={displayMetrics?.publications_count || 0}
             icon={<Book className="h-4 w-4 text-gray-500" />}
-            trend={{ value: 12, isPositive: true }}
-            description={isAuthenticated ? "Data from ORCID" : "Mock data"}
+            trend={displayMetrics ? undefined : { value: 12, isPositive: true }}
+            description={isAuthenticated ? "Publications with DOIs from ORCID" : `Demo data from ORCID researcher`}
           />
           <MetricsCard
             title="Citations"
-            value={currentUser.metrics.citations}
+            value={displayMetrics?.total_citations || 0}
             icon={<BookUser className="h-4 w-4 text-gray-500" />}
-            trend={{ value: 23, isPositive: true }}
-            description={isAuthenticated ? "Data from ORCID" : "Mock data"}
+            trend={displayMetrics?.citation_trend}
+            description={isAuthenticated ? "Real citation count from CrossRef" : "Demo citation data from CrossRef"}
           />
           <MetricsCard
             title="h-index"
-            value={currentUser.metrics.hIndex}
+            value={displayMetrics?.h_index_approximation || 0}
             icon={<Award className="h-4 w-4 text-gray-500" />}
-            trend={{ value: 2, isPositive: true }}
-            description={isAuthenticated ? "Data from ORCID" : "Mock data"}
+            trend={displayMetrics ? undefined : { value: 2, isPositive: true }}
+            description={isAuthenticated ? "Approximated h-index" : "Demo h-index calculation"}
           />
           <MetricsCard
-            title={isAuthenticated ? "ORCID Profile" : "Network"}
-            value={isAuthenticated ? 1 : currentUser.followers + currentUser.following}
+            title={isAuthenticated ? "Cited Publications" : "Cited Publications"}
+            value={displayMetrics?.cited_publications_count || currentUser.followers + currentUser.following}
             icon={<Users className="h-4 w-4 text-gray-500" />}
-            description={isAuthenticated 
-              ? `ORCID ID: ${userIdentity?.orcid_id || 'N/A'}` 
+            description={displayMetrics 
+              ? `${displayMetrics.cited_publications_count}/${displayMetrics.publications_count} publications cited`
               : `${currentUser.followers} followers, ${currentUser.following} following`}
           />
         </div>
+
+        {/* Loading state for citation analysis */}
+        {isLoadingMetrics && (
+          <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <div className="flex items-center space-x-3">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orcid-green"></div>
+              <div>
+                <h3 className="text-lg font-semibold text-blue-900">
+                  {isAuthenticated ? "Analyzing Your Citations..." : "Loading Demo Citation Data..."}
+                </h3>
+                <p className="text-blue-700 text-sm">
+                  Fetching publications from ORCID and citation counts from CrossRef
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Citation error state */}
+        {isAuthenticated && citationError && (
+          <div className="mt-8 bg-red-50 border border-red-200 rounded-lg p-6">
+            <div className="flex items-center space-x-3">
+              <div className="text-red-500">⚠️</div>
+              <div>
+                <h3 className="text-lg font-semibold text-red-800">Citation Analysis Error</h3>
+                <p className="text-red-600 text-sm">{citationError}</p>
+                <p className="text-gray-600 text-sm mt-1">
+                  This could be due to network issues, API rate limits, or missing DOIs in your ORCID record.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ORCID User Profile Section */}
         {userIdentity && (
@@ -242,7 +377,11 @@ const Dashboard = () => {
         <div className="mt-8 grid gap-4 grid-cols-1 lg:grid-cols-4">
           <div className="lg:col-span-3 space-y-4">
             {/* Citation Chart */}
-            <CitationChart baseCitations={currentUser.metrics.citations / 5} />
+            <CitationChart
+              citationData={displayMetrics?.citation_chart_data}
+              isLoading={isLoadingMetrics}
+              error={isAuthenticated ? (citationError || undefined) : undefined}
+            />
             
             {/* Recent Publications */}
             <RecentPublications publications={publications} />
@@ -256,9 +395,19 @@ const Dashboard = () => {
             <div className="bg-gray-50 rounded-xl p-4">
               <h3 className="text-sm font-medium mb-3 flex items-center">
                 <Lightbulb className="h-4 w-4 mr-2 text-orcid-green" />
-                Suggested Actions
+                {isAuthenticated ? "Suggested Actions" : "Get Started"}
               </h3>
               <ul className="space-y-2 text-sm">
+                {!isAuthenticated && (
+                  <li className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                    <button 
+                      onClick={() => window.location.href = "/orcid-test"}
+                      className="text-gray-800 hover:text-orcid-green w-full text-left font-medium"
+                    >
+                      Connect your ORCID to see your personal citation metrics
+                    </button>
+                  </li>
+                )}
                 <li className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                   <Link to="/publications/import" className="text-gray-800 hover:text-orcid-green">
                     Import your latest publications from Google Scholar
@@ -274,6 +423,16 @@ const Dashboard = () => {
                     Add social media links to your profile
                   </Link>
                 </li>
+                {isAuthenticated && !loadingCitations && !citationMetrics && (
+                  <li className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                    <button 
+                      onClick={handleRefreshCitations}
+                      className="text-gray-800 hover:text-orcid-green w-full text-left"
+                    >
+                      Analyze your citation metrics
+                    </button>
+                  </li>
+                )}
               </ul>
             </div>
           </div>
@@ -317,7 +476,10 @@ const Dashboard = () => {
           <div className="fixed bottom-4 left-4 bg-black text-white p-2 text-xs rounded">
             Modal Open: {isUserModalOpen ? 'true' : 'false'} | 
             User: {userIdentity ? 'exists' : 'null'} | 
-            Auth: {isAuthenticated ? 'true' : 'false'}
+            Auth: {isAuthenticated ? 'true' : 'false'} |
+            Citations: {citationMetrics ? 'loaded' : 'null'} |
+            Demo: {demoCitationMetrics ? 'loaded' : 'null'} |
+            Loading: {isLoadingMetrics ? 'true' : 'false'}
           </div>
         )}
       </div>
