@@ -40,9 +40,17 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
+# Session configuration for cross-origin requests
+SESSION_COOKIE_SAMESITE = 'None'
+SESSION_COOKIE_SECURE = not DEBUG  # True in production with HTTPS, False in development
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_AGE = 86400  # 24 hours
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+
 # CSRF configuration for cross-origin requests
 CSRF_COOKIE_SAMESITE = 'None'
-CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = False
 CSRF_TRUSTED_ORIGINS = [
     "https://orcid-project-aidentro.vercel.app",
     "http://localhost:8080",

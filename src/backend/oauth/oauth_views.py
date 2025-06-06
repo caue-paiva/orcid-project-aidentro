@@ -133,6 +133,12 @@ def oauth_callback(request):
         request.session['orcid_access_token'] = access_token
         request.session['orcid_name'] = token_response.get('name', '')
         
+        # Force session save and log session details
+        request.session.save()
+        logger.info(f"Session saved with key: {request.session.session_key}")
+        logger.info(f"Session data after save: {dict(request.session)}")
+        logger.info(f"Session age: {request.session.get_session_cookie_age()}")
+        
         # Redirect to frontend with success
         frontend_url = config('FRONTEND_URL', default='http://localhost:8080')
         return redirect(f"{frontend_url}/auth/success?orcid_id={orcid_id}")
@@ -287,4 +293,13 @@ def health_check(request):
         'allowed_hosts': settings.ALLOWED_HOSTS,
         'cors_allow_all_origins': getattr(settings, 'CORS_ALLOW_ALL_ORIGINS', False),
         'cors_allowed_origins': getattr(settings, 'CORS_ALLOWED_ORIGINS', []),
+        'session_key_exists': bool(request.session.session_key),
+        'request_origin': request.META.get('HTTP_ORIGIN', 'Unknown'),
+        'has_any_session_data': bool(dict(request.session)),
+        'oauth_config': {
+            'orcid_base_url': ORCID_BASE_URL,
+            'client_id_configured': bool(ORCID_CLIENT_ID),
+            'redirect_uri': ORCID_REDIRECT_URI,
+            'frontend_url': config('FRONTEND_URL', default='http://localhost:8080'),
+        }
     }) 
