@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import UserInfoModal from "@/components/UserInfoModal";
-import { getCurrentUserIdentity, UserIdentity } from "@/api/orcidApi";
+import { getCurrentUserIdentity, getUserIdentity, UserIdentity } from "@/api/orcidApi";
+import { getStoredOrcidId, isOrcidAuthenticated } from "@/utils/orcidAuth";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,7 +26,7 @@ const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [userIdentity, setUserIdentity] = useState<UserIdentity | null>(null);
-  const isLoggedIn = !!currentUser?.isCompleteProfile;
+  const isLoggedIn = isOrcidAuthenticated(); // Use real ORCID authentication status
 
   const mainNavItems = [
     { name: "Membership", href: "/membership" },
@@ -52,8 +53,12 @@ const Navbar = () => {
     const loadUserIdentity = async () => {
       if (isLoggedIn) {
         try {
-          const identity = await getCurrentUserIdentity();
-          setUserIdentity(identity);
+          const storedOrcidId = getStoredOrcidId();
+          if (storedOrcidId) {
+            const identity = await getUserIdentity(storedOrcidId);
+            identity.authenticated = true;
+            setUserIdentity(identity);
+          }
         } catch (error) {
           // Silently handle error - user can still click to try again
         }
@@ -161,18 +166,25 @@ const Navbar = () => {
                     onClick={async () => {
                       // Always try to fetch fresh identity if logged in, or set default if not
                       try {
-                        const identity = await getCurrentUserIdentity();
-                        setUserIdentity(identity || {
-                          orcid_id: 'Unknown',
-                          name: 'Unknown User',
-                          email: undefined,
-                          current_affiliation: undefined,
-                          current_location: undefined,
-                          profile_url: 'https://orcid.org',
-                          authenticated: false
-                        });
+                        const storedOrcidId = getStoredOrcidId();
+                        if (storedOrcidId && isOrcidAuthenticated()) {
+                          const identity = await getUserIdentity(storedOrcidId);
+                          identity.authenticated = true;
+                          setUserIdentity(identity);
+                        } else {
+                          // Set default values for non-logged-in users
+                          setUserIdentity({
+                            orcid_id: 'Unknown',
+                            name: 'Unknown User',
+                            email: undefined,
+                            current_affiliation: undefined,
+                            current_location: undefined,
+                            profile_url: 'https://orcid.org',
+                            authenticated: false
+                          });
+                        }
                       } catch (error) {
-                        // Set default values for non-logged-in users
+                        // Set default values on error
                         setUserIdentity({
                           orcid_id: 'Unknown',
                           name: 'Unknown User',

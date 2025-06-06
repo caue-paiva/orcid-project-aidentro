@@ -206,7 +206,7 @@ def get_user_identity(request):
         }, status=500)
 
 @csrf_exempt
-@require_http_methods(["GET"])
+@require_http_methods(["GET", "OPTIONS"])
 def get_current_user_identity(request):
     """
     Get current authenticated user's identity information
@@ -264,7 +264,7 @@ def get_current_user_identity(request):
         }, status=500)
 
 @csrf_exempt
-@require_http_methods(["GET"])
+@require_http_methods(["GET", "OPTIONS"])
 def debug_session(request):
     """
     Debug endpoint to check session data
@@ -281,11 +281,20 @@ def debug_session(request):
     })
 
 @csrf_exempt  
-@require_http_methods(["GET"])
+@require_http_methods(["GET", "OPTIONS"])
 def health_check(request):
     """
     Simple health check endpoint
     """
+    # Handle preflight OPTIONS request
+    if request.method == 'OPTIONS':
+        response = JsonResponse({'status': 'preflight_ok'})
+        response['Access-Control-Allow-Origin'] = request.META.get('HTTP_ORIGIN', '*')
+        response['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        response['Access-Control-Allow-Credentials'] = 'true'
+        return response
+        
     from django.conf import settings
     return JsonResponse({
         'status': 'ok',
@@ -302,4 +311,28 @@ def health_check(request):
             'redirect_uri': ORCID_REDIRECT_URI,
             'frontend_url': config('FRONTEND_URL', default='http://localhost:8080'),
         }
-    }) 
+    })
+
+@csrf_exempt  
+def simple_test(request):
+    """
+    Super simple test endpoint to debug CORS
+    """
+    response = JsonResponse({
+        'message': 'Simple test endpoint working',
+        'method': request.method,
+        'origin': request.META.get('HTTP_ORIGIN', 'Unknown'),
+    })
+    
+    # Manually add CORS headers
+    origin = request.META.get('HTTP_ORIGIN')
+    if origin:
+        response['Access-Control-Allow-Origin'] = origin
+    else:
+        response['Access-Control-Allow-Origin'] = '*'
+        
+    response['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+    response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    response['Access-Control-Allow-Credentials'] = 'true'
+    
+    return response 

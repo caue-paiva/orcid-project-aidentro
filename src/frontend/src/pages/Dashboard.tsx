@@ -9,7 +9,8 @@ import CitationChart from "@/components/dashboard/CitationChart";
 import UserProfile from "@/components/UserProfile";
 import UserInfoModal from "@/components/UserInfoModal";
 import { currentUser, getPublicationsByResearcherId } from "@/data/mockData";
-import { getCurrentUserIdentity, UserIdentity, debugSession, healthCheck } from "@/api/orcidApi";
+import { getCurrentUserIdentity, getUserIdentity, UserIdentity, debugSession, healthCheck } from "@/api/orcidApi";
+import { getStoredOrcidId, isOrcidAuthenticated, clearOrcidAuth } from "@/utils/orcidAuth";
 import { Book, FilePlus, Users, Award, BookUser, Lightbulb, User } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -26,11 +27,26 @@ const Dashboard = () => {
       try {
         setLoadingUser(true);
         setUserError(null);
-        const identity = await getCurrentUserIdentity();
-        setUserIdentity(identity);
+        
+        // Check if we have stored ORCID ID
+        const storedOrcidId = getStoredOrcidId();
+        const isAuthenticated = isOrcidAuthenticated();
+        
+        if (storedOrcidId && isAuthenticated) {
+          console.log('Using stored ORCID ID:', storedOrcidId);
+          // Use stored ORCID ID to get user identity
+          const identity = await getUserIdentity(storedOrcidId);
+          identity.authenticated = true; // Mark as authenticated since we have stored credentials
+          setUserIdentity(identity);
+        } else {
+          console.log('No stored ORCID ID found');
+          setUserIdentity(null);
+        }
       } catch (error) {
         console.error("Failed to fetch user identity:", error);
         setUserError("Failed to load user profile");
+        // Clear invalid stored auth on error
+        clearOrcidAuth();
       } finally {
         setLoadingUser(false);
       }
@@ -42,6 +58,14 @@ const Dashboard = () => {
   // Determine display name and authentication status
   const isAuthenticated = userIdentity?.authenticated || false;
   const displayName = isAuthenticated ? userIdentity.name : 'Guest';
+
+  // Logout function
+  const handleLogout = () => {
+    clearOrcidAuth();
+    setUserIdentity(null);
+    // Optionally redirect or refresh
+    window.location.reload();
+  };
 
   // Health check function
   const handleHealthCheck = async () => {
@@ -64,6 +88,23 @@ const Dashboard = () => {
     } catch (error) {
       console.error('Debug session failed:', error);
       alert('Debug session failed: ' + error);
+    }
+  };
+
+  // Function to handle user modal opening
+  const handleOpenUserModal = async () => {
+    try {
+      // Always fetch fresh user identity when opening modal
+      const storedOrcidId = getStoredOrcidId();
+      if (storedOrcidId) {
+        const identity = await getUserIdentity(storedOrcidId);
+        identity.authenticated = true;
+        setUserIdentity(identity);
+      }
+      setIsUserModalOpen(true);
+    } catch (error) {
+      console.error('Failed to refresh user identity:', error);
+      setIsUserModalOpen(true); // Open modal anyway with existing data
     }
   };
 
@@ -91,12 +132,7 @@ const Dashboard = () => {
                     </p>
                     {isAuthenticated && (
                       <button
-                        onClick={() => {
-                          console.log('Button clicked, opening modal');
-                          console.log('userIdentity:', userIdentity);
-                          console.log('isUserModalOpen before:', isUserModalOpen);
-                          setIsUserModalOpen(true);
-                        }}
+                        onClick={handleOpenUserModal}
                         className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors cursor-pointer"
                       >
                         <User className="w-3 h-3 mr-1" />
@@ -138,12 +174,20 @@ const Dashboard = () => {
               Import Publications
             </Button>
             {isAuthenticated ? (
-              <Button
-                className="bg-orcid-green hover:bg-orcid-green/90"
-                onClick={() => window.location.href = "/profile"}
-              >
-                View ORCID Profile
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  className="bg-orcid-green hover:bg-orcid-green/90"
+                  onClick={() => window.open(userIdentity?.profile_url, '_blank')}
+                >
+                  View ORCID Profile
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleLogout}
+                >
+                  Logout
+                </Button>
+              </div>
             ) : (
               <Button
                 className="bg-blue-600 hover:bg-blue-700"
