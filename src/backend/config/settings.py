@@ -34,13 +34,21 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*', cast=Csv())
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:8080",  # React dev server
     "http://127.0.0.1:8080",
+    "https://orcid-project-aidentro.vercel.app",  # Vercel production
 ]
 
 CORS_ALLOW_CREDENTIALS = True
 
 # For development, you can also use:
-if DEBUG:
-    CORS_ALLOW_ALL_ORIGINS = True
+
+CORS_ALLOW_ALL_ORIGINS = True
+
+CORLS_ALLOW_METHODS = [
+    "DELETE",
+    "PUT",
+    "POST",
+    "GET",
+]
 
 # Application definition
 
