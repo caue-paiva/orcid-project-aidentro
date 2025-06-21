@@ -14,6 +14,7 @@ import urllib3
 from datetime import datetime
 from collections import defaultdict
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class ORCIDAPIClient:
@@ -777,7 +778,6 @@ class ORCIDAPIClient:
         
         try:
             # Get researcher's works
-            print("🔄 Fetching researcher works from ORCID...")
             works_data = self.get_researcher_works()
             crossref_client = PublicationAPIClient()
             
@@ -814,66 +814,69 @@ class ORCIDAPIClient:
             
             # Limit publications to prevent timeouts
             if len(publications_with_dois) > max_publications:
-                print(f"⚠️  Limiting analysis to {max_publications} publications (found {len(publications_with_dois)})")
                 # Sort by publication year (newest first) and take the most recent
                 publications_with_dois.sort(key=lambda x: x['publication_year'] or 0, reverse=True)
                 publications_with_dois = publications_with_dois[:max_publications]
             
-            print(f"📊 Analyzing {len(publications_with_dois)} publications with DOIs")
+            # Parallel citation lookup function
+            def get_citation_count(pub):
+                """Get citation count for a single publication"""
+                try:
+                    citation_info = crossref_client.get_publication_citations(pub['doi'], timeout=timeout_per_request)
+                    return {
+                        'pub': pub,
+                        'citation_count': citation_info.get('citation_count', 0),
+                        'success': True,
+                        'error': None
+                    }
+                except Exception as e:
+                    return {
+                        'pub': pub,
+                        'citation_count': 0,
+                        'success': False,
+                        'error': str(e)
+                    }
             
-            # Get citation data for each publication
+            # Process publications in parallel
             citations_by_year = defaultdict(int)
             total_citations = 0
             publications_with_citations = 0
             successful_lookups = 0
             failed_lookups = 0
             
-            for i, pub in enumerate(publications_with_dois):
-                # Check if we're running out of time
-                elapsed_time = time.time() - analysis_start_time
-                if elapsed_time > max_analysis_time:
-                    print(f"⏰ Analysis timeout reached ({elapsed_time:.1f}s), stopping at {i+1}/{len(publications_with_dois)} publications")
-                    break
+            # Use ThreadPoolExecutor for parallel API calls
+            max_workers = min(10, len(publications_with_dois))  # Limit concurrent requests
+            
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all citation lookup tasks
+                future_to_pub = {executor.submit(get_citation_count, pub): pub for pub in publications_with_dois}
                 
-                try:
-                    # Get citation count from CrossRef with timeout
-                    print(f"🔍 Looking up citations for DOI {i+1}/{len(publications_with_dois)}: {pub['doi'][:50]}...")
-                    
-                    start_request = time.time()
-                    citation_info = crossref_client.get_publication_citations(pub['doi'])
-                    request_time = time.time() - start_request
-                    
-                    citation_count = citation_info.get('citation_count', 0)
-                    
-                    if citation_count > 0:
-                        publications_with_citations += 1
-                        total_citations += citation_count
+                # Process completed requests
+                for future in as_completed(future_to_pub, timeout=max_analysis_time - (time.time() - analysis_start_time)):
+                    try:
+                        result = future.result()
+                        pub = result['pub']
                         
-                        # For simplicity, attribute all citations to the publication year
-                        pub_year = pub['publication_year']
-                        if pub_year and pub_year >= start_year:
-                            citations_by_year[pub_year] += citation_count
-                        
-                        print(f"  ✅ Found {citation_count} citations ({request_time:.1f}s)")
-                    else:
-                        print(f"  📄 No citations found ({request_time:.1f}s)")
-                    
-                    successful_lookups += 1
-                    
-                    # Brief pause to avoid overwhelming APIs
-                    time.sleep(0.1)
-                    
-                except Exception as e:
-                    failed_lookups += 1
-                    print(f"  ❌ Failed to get citations for DOI {pub['doi']}: {str(e)[:100]}")
-                    # Don't break the entire analysis for one failed DOI
-                    continue
+                        if result['success']:
+                            successful_lookups += 1
+                            citation_count = result['citation_count']
+                            
+                            if citation_count > 0:
+                                publications_with_citations += 1
+                                total_citations += citation_count
+                                
+                                # Attribute citations to publication year
+                                pub_year = pub['publication_year']
+                                if pub_year and pub_year >= start_year:
+                                    citations_by_year[pub_year] += citation_count
+                        else:
+                            failed_lookups += 1
+                            
+                    except Exception as e:
+                        failed_lookups += 1
+                        continue
             
             total_analysis_time = time.time() - analysis_start_time
-            print(f"📈 Analysis completed in {total_analysis_time:.1f}s:")
-            print(f"  • Successful lookups: {successful_lookups}/{len(publications_with_dois)}")
-            print(f"  • Failed lookups: {failed_lookups}")
-            print(f"  • Total citations found: {total_citations}")
             
             # Build yearly data with cumulative totals
             yearly_data = []
@@ -891,7 +894,6 @@ class ORCIDAPIClient:
             
             # If no citation data found, generate minimal data structure
             if total_citations == 0:
-                print("📊 No citation data found, generating minimal structure")
                 yearly_data = []
                 for year in range(start_year, current_year + 1):
                     yearly_data.append({
@@ -914,7 +916,6 @@ class ORCIDAPIClient:
             
         except Exception as e:
             error_time = time.time() - analysis_start_time
-            print(f"❌ Error in citation analysis after {error_time:.1f}s: {e}")
             # Return empty structure on error
             current_year = datetime.now().year
             start_year = current_year - years_back + 1
@@ -994,7 +995,6 @@ class ORCIDAPIClient:
             }
             
         except Exception as e:
-            print(f"Error getting citation metrics: {e}")
             # Return empty metrics on error
             return {
                 'total_citations': 0,

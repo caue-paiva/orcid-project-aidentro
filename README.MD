@@ -4,6 +4,9 @@ Este repositório contém toda a organização do trabalho da disciplina **Engen
 
 Nosso objetivo é desenvolver uma aplicação baseada na [API pública do ORCID](https://orcid.org), buscando melhorar a usabilidade e a visualização dos dados de pesquisadores, conforme requisitos levantados com docentes do ICMC.
 
+## Website
+
+O projeto está atualmente disponível num [link público](https://aidentro.vercel.app/), com o front-end deployado na Vercel e o Back-end deployado no Render.
 
 ## 📁 Estrutura do Repositório
 
@@ -38,6 +41,10 @@ A estrutura deste repositório foi pensada para facilitar a correção e evidenc
 1. **Documentação**: plano do projeto, requisitos, modelagem, casos de uso e testes.
 2. **Desenvolvimento**: metodologia ágil, organização do time e rastreabilidade.
 3. **Produto**: código funcional, usabilidade, clareza e documentação.
+
+## Gen - AI
+
+Para o desenvolvimento do projeto foram utilizadas diversas ferramentas de IA Generativa, a exemplo do Curso. Para apoiar o fluxo de desenvolvimento com essa ferramenta, a documentação oficial da API do Orcid for transcrita para Markdown e salva em  .cursor/rules/orcid-api-docs.mdc para que os agentes de IA generativa integradas na IDE Cursor consigam ter o contexto da API utilizada e deem respostas mais precisas e alinhadas com os obejtivos do Projeto
 
 
 ## 📎 Links úteis

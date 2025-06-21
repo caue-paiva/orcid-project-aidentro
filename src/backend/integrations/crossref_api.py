@@ -44,16 +44,16 @@ class PublicationAPIClient:
             response.raise_for_status()
             return response.json()
         except requests.exceptions.Timeout:
-            print(f"⏰ Request timeout after {timeout}s for URL: {url}")
             raise requests.RequestException(f"Request timeout after {timeout} seconds")
         except requests.exceptions.SSLError:
             # If SSL verification fails, try without verification (for testing environments)
-            print("⚠️  SSL verification failed, retrying without verification...")
             # Disable SSL warnings for this request
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
             response = requests.get(url, headers=self.headers, params=params, verify=False, timeout=timeout)
             response.raise_for_status()
             return response.json()
+        except requests.exceptions.RequestException as e:
+            raise requests.RequestException(f"API request failed: {str(e)}")
     
     def get_publication_by_doi(self, doi: str, timeout: int = 10) -> Dict:
         """

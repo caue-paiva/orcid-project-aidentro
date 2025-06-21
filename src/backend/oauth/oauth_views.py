@@ -365,14 +365,11 @@ def test_citation_analysis(request):
         years_back = int(request.GET.get('years_back', 5))
         max_publications = int(request.GET.get('max_publications', 10))  # Reduced default for faster testing
         
-        logger.info(f"Starting citation analysis test - ORCID: {test_orcid_id}, years: {years_back}, max_pubs: {max_publications}")
-        
         # Create ORCID API client
         client = ORCIDAPIClient(access_token="", orcid_id=test_orcid_id)
         
         # Get user identity first (quick operation)
         user_identity = client.get_user_identity_info()
-        logger.info(f"Retrieved user identity: {user_identity.get('name', 'Unknown')}")
         
         # Get citation analysis with limits to prevent timeout
         citation_analysis = client.get_citation_analysis(
@@ -383,9 +380,6 @@ def test_citation_analysis(request):
         
         # Get citation metrics for dashboard
         citation_metrics = client.get_citation_metrics_for_dashboard()
-        
-        logger.info(f"Citation analysis completed successfully in {citation_analysis.get('analysis_time_seconds', 0)}s")
-        logger.info(f"Found {citation_analysis['total_citations']} citations from {citation_analysis['successful_lookups']} successful lookups")
         
         return JsonResponse({
             'success': True,
@@ -423,8 +417,6 @@ def quick_citation_test(request):
     try:
         test_orcid_id = "0000-0003-1574-0784"
         
-        logger.info(f"Starting quick citation test for ORCID: {test_orcid_id}")
-        
         # Create ORCID API client
         client = ORCIDAPIClient(access_token="", orcid_id=test_orcid_id)
         
@@ -434,8 +426,6 @@ def quick_citation_test(request):
         # Get basic works info without citation counts
         works_data = client.get_researcher_works()
         total_works = len(works_data.get('group', []))
-        
-        logger.info(f"Quick test completed - found {total_works} works")
         
         return JsonResponse({
             'success': True,
