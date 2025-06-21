@@ -10,6 +10,9 @@ import logging
 import json
 import requests
 from django.views.decorators.csrf import csrf_exempt
+from django.db.models import Sum
+from config.models import User, CitationTimeSeries, Work
+import datetime
 
 # Add import for our ORCID API client
 from integrations.orcid_api import ORCIDAPIClient
@@ -225,7 +228,80 @@ def get_citation_metrics(request):
         
         # Get citation metrics for dashboard
         citation_metrics = client.get_citation_metrics_for_dashboard()
-        
+
+        user = User.objects.filter(orcid_id=orcid_id).first()
+
+        if user:
+            ts_qs = (
+                CitationTimeSeries.objects
+                    .filter(user=user)
+                    .order_by("year")
+            )
+
+            if ts_qs.exists():
+                yearly_data = [
+                    {"year": ts.year, "citations": ts.citations_count}
+                    for ts in ts_qs
+                ]
+
+                total_citations = ts_qs.aggregate(
+                    total=Sum("citations_count")
+                )["total"] or 0
+
+                current_year = datetime.now().year
+                cur_year_cit = next(
+                    (d["citations"] for d in yearly_data
+                    if d["year"] == current_year), 0)
+                prev_year_cit = next(
+                    (d["citations"] for d in yearly_data
+                    if d["year"] == current_year - 1), 0)
+
+                citation_trend = None
+                if prev_year_cit > 0:
+                    pct = round(
+                        ((cur_year_cit - prev_year_cit) / prev_year_cit) * 100,
+                        1,
+                    )
+                    citation_trend = {"value": abs(pct), "isPositive": pct >= 0}
+
+                years_with_cit = [d for d in yearly_data if d["citations"] > 0]
+                avg_cit_per_year = (
+                    round(total_citations / len(years_with_cit))
+                    if years_with_cit else 0
+                )
+
+                total_pubs = Work.objects.filter(user=user).count()
+                pubs_with_cit = Work.objects.filter(
+                    user=user, citation_count__gt=0
+                ).count()
+
+                h_idx_approx = min(
+                    pubs_with_cit,
+                    int(total_citations / max(pubs_with_cit, 1)),
+                )
+
+                citation_metrics = {
+                    "total_citations": total_citations,
+                    "citation_trend": citation_trend,
+                    "avg_citations_per_year": avg_cit_per_year,
+                    "h_index_approximation": h_idx_approx,
+                    "publications_count": total_pubs,
+                    "cited_publications_count": pubs_with_cit,
+                    "citation_chart_data": yearly_data,
+                    "analysis_success": True,
+                }
+
+                logger.info(
+                    "Citation metrics served from DB for ORCID %s", orcid_id
+                )
+
+                return JsonResponse(
+                    {"success": True, "citation_metrics": citation_metrics}
+                )
+
+        client = ORCIDAPIClient(access_token="", orcid_id=orcid_id)
+        citation_metrics = client.get_citation_metrics_for_dashboard()
+
         logger.info(f"Successfully retrieved citation metrics for ORCID ID: {orcid_id}")
         
         return JsonResponse({
