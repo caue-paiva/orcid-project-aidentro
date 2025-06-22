@@ -47,6 +47,7 @@ import { searchResearchers, SearchResearchersResponse } from "@/api/orcidApi";
 
 const Search = () => {
   const [query, setQuery] = useState("");
+  const [nameQuery, setNameQuery] = useState("");
   const [institution, setInstitution] = useState("");
   const [country, setCountry] = useState("");
   const [expertise, setExpertise] = useState<string[]>([]);
@@ -113,9 +114,26 @@ const Search = () => {
     setSearchError(null);
     
     try {
+      // Combine main query with name query if both are provided
+      let combinedQuery = "";
+      
+      if (query.trim() && nameQuery.trim()) {
+        // Both fields have content - combine them with AND
+        combinedQuery = `(${query.trim()}) AND (given-names:${nameQuery.trim()} OR family-name:${nameQuery.trim()} OR credit-name:"${nameQuery.trim()}")`;
+      } else if (nameQuery.trim()) {
+        // Only name query provided
+        combinedQuery = `given-names:${nameQuery.trim()} OR family-name:${nameQuery.trim()} OR credit-name:"${nameQuery.trim()}"`;
+      } else if (query.trim()) {
+        // Only main query provided
+        combinedQuery = query.trim();
+      } else {
+        // No query provided - search all (will be filtered by other criteria)
+        combinedQuery = "*";
+      }
+
       // Build ORCID query from frontend filters
       const orcidQuery = buildORCIDQuery({
-        query,
+        query: combinedQuery,
         institution: institution !== "any" ? institution : undefined,
         country: country !== "any" ? country : undefined,
         expertise: expertise.length > 0 ? expertise : undefined,
@@ -212,6 +230,8 @@ const Search = () => {
     }
   };
 
+
+
   const handleFollow = (researcher: any) => {
     toast.success(`Now following ${researcher.name}`);
   };
@@ -305,6 +325,21 @@ const Search = () => {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Search by Name Section */}
+          <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <h3 className="text-sm font-medium text-gray-700 mb-2">Search by Name</h3>
+            <Input
+              placeholder="Enter researcher name (e.g., 'John Smith', 'Maria Garcia')"
+              value={nameQuery}
+              onChange={(e) => setNameQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="w-full"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              This field will be included when you click the main Search button below
+            </p>
           </div>
 
           <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
@@ -562,13 +597,22 @@ const Search = () => {
                     </div>
                   </CardContent>
                   <CardFooter className="bg-gray-50 border-t pt-3 pb-3 flex justify-between">
-                    <a 
-                      href={researcher.profile_url || researcher.orcid_uri}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <Button variant="ghost" size="sm">View ORCID</Button>
-                    </a>
+                    <div className="flex gap-2">
+                      <a 
+                        href={researcher.profile_url || researcher.orcid_uri}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Button variant="ghost" size="sm">View ORCID</Button>
+                      </a>
+                      <Link
+                        to={`/dashboard-social?orcid_id=${encodeURIComponent(researcher.orcidId)}&name=${encodeURIComponent(researcher.name)}&institution=${encodeURIComponent(researcher.institutionName || '')}`}
+                      >
+                        <Button variant="ghost" size="sm" className="text-blue-600 hover:bg-blue-50">
+                          View Dashboard
+                        </Button>
+                      </Link>
+                    </div>
                     <Button 
                       variant="ghost" 
                       size="sm"
