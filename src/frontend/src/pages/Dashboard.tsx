@@ -7,7 +7,6 @@ import RecentPublications from "@/components/dashboard/RecentPublications";
 import CitationChart from "@/components/dashboard/CitationChart";
 import UserProfile from "@/components/UserProfile";
 import UserInfoModal from "@/components/UserInfoModal";
-import { currentUser, getPublicationsByResearcherId } from "@/data/mockData";
 import { getCurrentUserIdentity, getUserIdentity, UserIdentity, debugSession, healthCheck, getCitationMetrics } from "@/api/orcidApi";
 import { getStoredOrcidId, isOrcidAuthenticated, clearOrcidAuth } from "@/utils/orcidAuth";
 import { CitationMetrics } from "@/types";
@@ -18,7 +17,6 @@ import { useEffect, useState } from "react";
 const DEMO_ORCID_ID = "0000-0003-1574-0784";
 
 const Dashboard = () => {
-  const publications = getPublicationsByResearcherId(currentUser.id);
   const [userIdentity, setUserIdentity] = useState<UserIdentity | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [userError, setUserError] = useState<string | null>(null);
@@ -306,7 +304,6 @@ const Dashboard = () => {
             title="Total Publications"
             value={displayMetrics?.publications_count || 0}
             icon={<Book className="h-4 w-4 text-gray-500" />}
-            trend={displayMetrics ? undefined : { value: 12, isPositive: true }}
             description={isAuthenticated ? "Publications with DOIs from ORCID" : `Demo data from ORCID researcher`}
           />
           <MetricsCard
@@ -320,16 +317,15 @@ const Dashboard = () => {
             title="h-index"
             value={displayMetrics?.h_index_approximation || 0}
             icon={<Award className="h-4 w-4 text-gray-500" />}
-            trend={displayMetrics ? undefined : { value: 2, isPositive: true }}
             description={isAuthenticated ? "Approximated h-index" : "Demo h-index calculation"}
           />
           <MetricsCard
             title={isAuthenticated ? "Cited Publications" : "Cited Publications"}
-            value={displayMetrics?.cited_publications_count || currentUser.followers + currentUser.following}
+            value={displayMetrics?.cited_publications_count || 0}
             icon={<Users className="h-4 w-4 text-gray-500" />}
             description={displayMetrics 
               ? `${displayMetrics.cited_publications_count}/${displayMetrics.publications_count} publications cited`
-              : `${currentUser.followers} followers, ${currentUser.following} following`}
+              : "Publications that have been cited"}
           />
         </div>
 
@@ -384,12 +380,31 @@ const Dashboard = () => {
             />
             
             {/* Recent Publications */}
-            <RecentPublications publications={publications} />
+            <RecentPublications publications={[]} />
           </div>
           
           <div className="space-y-4">
-            {/* Profile Completion Widget */}
-            <ProfileCompletion researcher={currentUser} />
+            {/* Profile Completion Widget - Only show when authenticated */}
+            {isAuthenticated && userIdentity && (
+              <ProfileCompletion researcher={{
+                id: userIdentity.orcid_id,
+                orcidId: userIdentity.orcid_id,
+                name: userIdentity.name,
+                institutionName: userIdentity.current_affiliation || "",
+                countryCode: "",
+                country: userIdentity.current_location || "",
+                areaOfExpertise: [],
+                metrics: {
+                  publications: displayMetrics?.publications_count || 0,
+                  citations: displayMetrics?.total_citations || 0,
+                  hIndex: displayMetrics?.h_index_approximation || 0
+                },
+                followers: 0,
+                following: 0,
+                isCompleteProfile: false,
+                onboardingStep: 0
+              }} />
+            )}
             
             {/* Suggested Actions */}
             <div className="bg-gray-50 rounded-xl p-4">
