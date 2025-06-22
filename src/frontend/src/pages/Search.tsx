@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -19,7 +18,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { searchResearchers, countries, institutions } from "@/data/mockData";
+import { countries, institutions } from "@/data/mockData";
 import { Researcher } from "@/types";
 import { Book, Filter, Search as SearchIcon, SlidersHorizontal, UserPlus } from "lucide-react";
 import { toast } from "sonner";
@@ -42,6 +41,10 @@ import {
   ToggleGroupItem,
 } from "@/components/ui/toggle-group";
 
+// Import new utilities for ORCID integration
+import { buildORCIDQuery, applyClientSideFilters } from "@/utils/orcidQueryBuilder";
+import { searchResearchers, SearchResearchersResponse } from "@/api/orcidApi";
+
 const Search = () => {
   const [query, setQuery] = useState("");
   const [institution, setInstitution] = useState("");
@@ -51,9 +54,12 @@ const Search = () => {
   const [minCitations, setMinCitations] = useState(0);
   const [sortBy, setSortBy] = useState("relevance");
   const [showFilters, setShowFilters] = useState(false);
-  const [results, setResults] = useState<Researcher[]>([]);
+  const [results, setResults] = useState<any[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [totalResults, setTotalResults] = useState(0);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   // Lista de áreas de especialidade para o filtro
   const expertiseAreas = [
@@ -101,54 +107,103 @@ const Search = () => {
     }
   }, [query]);
 
-  const handleSearch = () => {
+  const handleSearch = async (startIndex: number = 0) => {
     setIsSearching(true);
     setSuggestions([]);
+    setSearchError(null);
     
-    // Simulate API call
-    setTimeout(() => {
-      // Filtrando os resultados com base nos critérios selecionados
-      let searchResults = searchResearchers(query);
-      
-      // Filtro por instituição
-      if (institution && institution !== "any") {
-        searchResults = searchResults.filter(r => r.institutionName === institution);
+    try {
+      // Build ORCID query from frontend filters
+      const orcidQuery = buildORCIDQuery({
+        query,
+        institution: institution !== "any" ? institution : undefined,
+        country: country !== "any" ? country : undefined,
+        expertise: expertise.length > 0 ? expertise : undefined,
+        minPublications,
+        minCitations,
+        sortBy
+      });
+
+      console.log('🔍 Built ORCID query:', orcidQuery.q);
+
+      // Call ORCID API through backend
+      const response: SearchResearchersResponse = await searchResearchers({
+        q: orcidQuery.q,
+        rows: 20,
+        start: startIndex
+      });
+
+      if (!response.success) {
+        throw new Error(response.error || 'Search failed');
       }
-      
-      // Filtro por país
-      if (country && country !== "any") {
-        searchResults = searchResults.filter(r => r.countryCode === country);
+
+      console.log('📊 Raw search results:', response.search_results);
+
+      // Apply client-side filters for features not supported by ORCID API
+      const filteredResults = applyClientSideFilters(
+        response.search_results.results,
+        {
+          minPublications,
+          minCitations,
+          sortBy
+        }
+      );
+
+      console.log('✅ Filtered results:', filteredResults);
+
+      // Convert to frontend format
+      const formattedResults = filteredResults.map(researcher => ({
+        id: researcher.orcid_id,
+        orcidId: researcher.orcid_id,
+        name: researcher.display_name,
+        institutionName: researcher.current_affiliation || "Independent Researcher",
+        countryCode: "", // Not available from ORCID search
+        country: "", // Not available from ORCID search
+        department: "",
+        position: "",
+        email: "",
+        avatarUrl: "",
+        biography: "",
+        website: researcher.profile_url,
+        socialLinks: {},
+        areaOfExpertise: [], // Would need additional API calls
+        metrics: {
+          publications: researcher.works_count || 0,
+          citations: 0, // Not available from basic search
+          hIndex: 0, // Not available from basic search
+        },
+        followers: 0,
+        following: 0,
+        isCompleteProfile: true,
+        onboardingStep: 4,
+        // Additional fields from ORCID
+        given_names: researcher.given_names,
+        family_name: researcher.family_name,
+        credit_name: researcher.credit_name,
+        profile_url: researcher.profile_url,
+        orcid_uri: researcher.orcid_uri,
+        error: researcher.error
+      }));
+
+      setResults(formattedResults);
+      setTotalResults(response.search_results.total_results);
+      setCurrentPage(Math.floor(startIndex / 20));
+
+      if (formattedResults.length === 0 && query) {
+        toast.info("No researchers found matching your criteria. Try adjusting your search terms.");
+      } else if (formattedResults.length > 0) {
+        toast.success(`Found ${response.search_results.total_results} researchers`);
       }
-      
-      // Filtro por áreas de especialidade
-      if (expertise.length > 0) {
-        searchResults = searchResults.filter(r => 
-          expertise.some(exp => r.areaOfExpertise.includes(exp))
-        );
-      }
-      
-      // Filtro por número mínimo de publicações
-      if (minPublications > 0) {
-        searchResults = searchResults.filter(r => r.metrics.publications >= minPublications);
-      }
-      
-      // Filtro por número mínimo de citações
-      if (minCitations > 0) {
-        searchResults = searchResults.filter(r => r.metrics.citations >= minCitations);
-      }
-      
-      // Ordenação dos resultados
-      if (sortBy === "publications") {
-        searchResults.sort((a, b) => b.metrics.publications - a.metrics.publications);
-      } else if (sortBy === "citations") {
-        searchResults.sort((a, b) => b.metrics.citations - a.metrics.citations);
-      } else if (sortBy === "hIndex") {
-        searchResults.sort((a, b) => b.metrics.hIndex - a.metrics.hIndex);
-      }
-      
-      setResults(searchResults);
+
+    } catch (error: any) {
+      console.error('❌ Search error:', error);
+      setSearchError(error.message || 'Search failed. Please try again.');
+      setResults([]);
+      setTotalResults(0);
+      toast.error('Search failed. Please check your connection and try again.');
+    } finally {
       setIsSearching(false);
-    }, 800);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -157,7 +212,7 @@ const Search = () => {
     }
   };
 
-  const handleFollow = (researcher: Researcher) => {
+  const handleFollow = (researcher: any) => {
     toast.success(`Now following ${researcher.name}`);
   };
 
@@ -178,6 +233,16 @@ const Search = () => {
     setSortBy("relevance");
   };
 
+  const loadNextPage = () => {
+    const nextStart = (currentPage + 1) * 20;
+    handleSearch(nextStart);
+  };
+
+  const loadPreviousPage = () => {
+    const prevStart = Math.max(0, (currentPage - 1) * 20);
+    handleSearch(prevStart);
+  };
+
   return (
     <Layout>
       <div className="px-4 py-8 md:px-6 lg:px-8 max-w-7xl mx-auto">
@@ -187,7 +252,7 @@ const Search = () => {
           <div className="grid gap-4 md:grid-cols-4">
             <div className="md:col-span-2 relative">
               <Input
-                placeholder="Search researchers, institutions, or topics"
+                placeholder="Search researchers, institutions, or topics (e.g., 'Machine Learning', 'family-name:Smith')"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -386,7 +451,7 @@ const Search = () => {
             </Collapsible>
 
             <Button
-              onClick={handleSearch}
+              onClick={() => handleSearch()}
               className="bg-orcid-green hover:bg-orcid-green/90 ml-auto"
               disabled={isSearching}
             >
@@ -394,13 +459,51 @@ const Search = () => {
               {isSearching ? "Searching..." : "Search"}
             </Button>
           </div>
+
+          {/* Search Error Display */}
+          {searchError && (
+            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-red-800 text-sm">
+                <strong>Search Error:</strong> {searchError}
+              </p>
+              <p className="text-red-600 text-xs mt-1">
+                Try simplifying your search terms or check your internet connection.
+              </p>
+            </div>
+          )}
         </div>
 
         {results.length > 0 && (
           <div>
-            <h2 className="text-xl font-semibold mb-4">
-              Search Results ({results.length})
-            </h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">
+                Search Results ({totalResults.toLocaleString()})
+              </h2>
+              
+              {/* Pagination Controls */}
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadPreviousPage}
+                  disabled={currentPage === 0 || isSearching}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-gray-600">
+                  Page {currentPage + 1}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadNextPage}
+                  disabled={((currentPage + 1) * 20) >= totalResults || isSearching}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+            
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {results.map((researcher) => (
                 <Card key={researcher.id} className="overflow-hidden hover:shadow-md transition-shadow">
@@ -420,6 +523,11 @@ const Search = () => {
                           <CardDescription>
                             {researcher.institutionName || "Independent Researcher"}
                           </CardDescription>
+                          {researcher.error && (
+                            <p className="text-xs text-red-500 mt-1">
+                              {researcher.error}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -432,18 +540,17 @@ const Search = () => {
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             strokeWidth={2}
-                            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                            d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
                           />
                         </svg>
-                        {researcher.country}
-                      </span>
-                    </div>
-                    
-                    <div className="text-sm">
-                      <strong className="text-gray-700">Expertise:</strong>{" "}
-                      <span>
-                        {researcher.areaOfExpertise.slice(0, 3).join(", ")}
-                        {researcher.areaOfExpertise.length > 3 && "..."}
+                        <a 
+                          href={researcher.profile_url || researcher.orcid_uri} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-orcid-green hover:underline"
+                        >
+                          ORCID Profile
+                        </a>
                       </span>
                     </div>
                     
@@ -452,23 +559,16 @@ const Search = () => {
                         <Book className="h-4 w-4 mr-1 text-gray-500" />
                         <strong>{researcher.metrics.publications}</strong> publications
                       </span>
-                      <span className="flex items-center">
-                        <svg className="h-4 w-4 mr-1 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
-                          />
-                        </svg>
-                        <strong>{researcher.metrics.citations}</strong> citations
-                      </span>
                     </div>
                   </CardContent>
                   <CardFooter className="bg-gray-50 border-t pt-3 pb-3 flex justify-between">
-                    <Link to={`/profile/${researcher.id}`}>
-                      <Button variant="ghost" size="sm">View Profile</Button>
-                    </Link>
+                    <a 
+                      href={researcher.profile_url || researcher.orcid_uri}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Button variant="ghost" size="sm">View ORCID</Button>
+                    </a>
                     <Button 
                       variant="ghost" 
                       size="sm"
@@ -485,7 +585,7 @@ const Search = () => {
           </div>
         )}
 
-        {query && !isSearching && results.length === 0 && (
+        {query && !isSearching && results.length === 0 && !searchError && (
           <div className="text-center py-10">
             <div className="text-gray-400 mb-4">
               <SearchIcon className="h-12 w-12 mx-auto" />
@@ -510,7 +610,7 @@ const Search = () => {
             <p className="text-gray-600 max-w-md mx-auto">
               Find researchers by name, institution, research area, or country.
               <br />
-              Start typing to see suggestions.
+              You can also use advanced ORCID syntax like "family-name:Smith" or "affiliation-org-name:University".
             </p>
           </div>
         )}

@@ -350,4 +350,67 @@ export const testCitationAnalysis = async (yearsBack: number = 5) => {
     console.error('💥 Failed to test citation analysis:', error);
     throw error;
   }
+};
+
+// New search researchers function
+export interface SearchResearchersParams {
+  q: string;
+  rows?: number;
+  start?: number;
+}
+
+export interface SearchResearchersResponse {
+  success: boolean;
+  search_results: {
+    query: string;
+    total_results: number;
+    start: number;
+    rows: number;
+    results: Array<{
+      orcid_id: string;
+      orcid_uri: string;
+      given_names?: string;
+      family_name?: string;
+      credit_name?: string;
+      display_name: string;
+      current_affiliation?: string;
+      works_count?: number;
+      profile_url: string;
+      error?: string;
+    }>;
+  };
+  error?: string;
+}
+
+export const searchResearchers = async (params: SearchResearchersParams): Promise<SearchResearchersResponse> => {
+  try {
+    const queryParams = new URLSearchParams();
+    queryParams.append('q', params.q);
+    
+    if (params.rows) {
+      queryParams.append('rows', params.rows.toString());
+    }
+    
+    if (params.start) {
+      queryParams.append('start', params.start.toString());
+    }
+
+    const response = await fetch(`${BACKEND_URL}/api/search-researchers/?${queryParams}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error searching researchers:', error);
+    throw error;
+  }
 }; 
