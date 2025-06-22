@@ -13,6 +13,7 @@ class User(AbstractUser):
     Extended User model with ORCID integration
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    email = models.EmailField(blank=True, null=True)  # Override AbstractUser email to allow null
     orcid_id = models.CharField(
         max_length=19,
         unique=True,

@@ -129,6 +129,9 @@ def oauth_callback(request):
         user_identity = orcid_client.get_user_identity_info()
         
         # Create or update user in database
+        # Provide a default email if none is available from ORCID
+        email = user_identity.get('email') or f"{orcid_id.replace('-', '')}@orcid.placeholder"
+        
         user, created = User.objects.get_or_create(
             orcid_id=orcid_id,
             defaults={
@@ -136,7 +139,7 @@ def oauth_callback(request):
                 'orcid_access_token': access_token,
                 'orcid_refresh_token': token_response.get('refresh_token', ''),
                 'display_name': user_identity.get('name', ''),
-                'email': user_identity.get('email', ''),
+                'email': email,
                 'last_orcid_sync': timezone.now()
             }
         )
@@ -150,8 +153,13 @@ def oauth_callback(request):
             # Update display name and email if they're empty or different
             if not user.display_name and user_identity.get('name'):
                 user.display_name = user_identity.get('name')
-            if not user.email and user_identity.get('email'):
-                user.email = user_identity.get('email')
+            if not user.email or user.email.endswith('@orcid.placeholder'):
+                # Update email if we have a real one, or if current email is placeholder
+                if user_identity.get('email'):
+                    user.email = user_identity.get('email')
+                elif user.email.endswith('@orcid.placeholder'):
+                    # Keep the placeholder email if no real email is available
+                    pass
             
             user.save()
             logger.info(f"Updated existing user: {user.username} ({orcid_id})")
