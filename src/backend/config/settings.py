@@ -34,27 +34,36 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*', cast=Csv())
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:8080",  # React dev server
     "http://127.0.0.1:8080",
+    "http://localhost:5173",  # Vite dev server (common port)
+    "http://127.0.0.1:5173",
     "https://orcid-project-aidentro.vercel.app",  # Vercel production
     "https://aidentro.vercel.app",  # Alternative Vercel URL
 ]
 
+# Enable credentials for session-based auth
 CORS_ALLOW_CREDENTIALS = True
 
-# Session configuration for cross-origin requests
-SESSION_COOKIE_SAMESITE = 'None'
-SESSION_COOKIE_SECURE = not DEBUG  # True in production with HTTPS, False in development
+# For development, allow all origins (less secure but useful for debugging)
+CORS_ALLOW_ALL_ORIGINS = True  # Temporarily enabled for debugging CORS issues
+
+# Session configuration - simplified for local admin access
+SESSION_COOKIE_SAMESITE = 'Lax'  # Use 'Lax' for local development
+SESSION_COOKIE_SECURE = False  # False for local development (HTTP)
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_AGE = 86400  # 24 hours
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
-# CSRF configuration for cross-origin requests
-CSRF_COOKIE_SAMESITE = 'None'
-CSRF_COOKIE_SECURE = not DEBUG
+# CSRF configuration - simplified for local admin access
+CSRF_COOKIE_SAMESITE = 'Lax'  # Use 'Lax' for local development
+CSRF_COOKIE_SECURE = False  # False for local development (HTTP)
+CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript access in development
 CSRF_TRUSTED_ORIGINS = [
     "https://orcid-project-aidentro.vercel.app",
     "http://localhost:8080",
     "http://127.0.0.1:8080",
+    "http://127.0.0.1:8000",
+    "http://localhost:8000",  # Add this for admin access
     "https://aidentro.vercel.app"
 ]
 
@@ -76,6 +85,15 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'cache-control',
+    'pragma',
+    'expires',
+]
+
+# Allow common response headers to be exposed to the frontend
+CORS_EXPOSE_HEADERS = [
+    'content-type',
+    'x-csrftoken',
 ]
 
 # Application definition
@@ -90,6 +108,9 @@ INSTALLED_APPS = [
     'corsheaders',
     'config',  # Main project app with models
 ]
+
+# Use database sessions to avoid UUID conflicts
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

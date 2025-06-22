@@ -755,12 +755,12 @@ class ORCIDAPIClient:
                 'error': str(e)
             }
 
-    def get_citation_analysis(self, years_back: int = 5, max_publications: int = 20, timeout_per_request: int = 10) -> Dict:
+    def get_citation_analysis(self, years_back: int = 15, max_publications: int = 20, timeout_per_request: int = 10) -> Dict:
         """
         Get citation analysis data showing citations per year and cumulative totals.
         
         Args:
-            years_back: Number of years back to analyze (default 5)
+            years_back: Number of years back to display in chart (default 15)
             max_publications: Maximum number of publications to process (default 20)
             timeout_per_request: Timeout in seconds for each API request (default 10)
             
@@ -778,6 +778,7 @@ class ORCIDAPIClient:
         
         try:
             # Get researcher's works
+            print(f"🔍 Fetching works for ORCID ID: {self.orcid_id}")
             works_data = self.get_researcher_works()
             crossref_client = PublicationAPIClient()
             
@@ -813,10 +814,12 @@ class ORCIDAPIClient:
                             })
             
             # Limit publications to prevent timeouts
+            print(f"📚 Found {len(publications_with_dois)} publications with DOIs")
             if len(publications_with_dois) > max_publications:
                 # Sort by publication year (newest first) and take the most recent
                 publications_with_dois.sort(key=lambda x: x['publication_year'] or 0, reverse=True)
                 publications_with_dois = publications_with_dois[:max_publications]
+                print(f"📚 Limited to {max_publications} most recent publications")
             
             # Parallel citation lookup function
             def get_citation_count(pub):
@@ -865,9 +868,10 @@ class ORCIDAPIClient:
                                 publications_with_citations += 1
                                 total_citations += citation_count
                                 
-                                # Attribute citations to publication year
+                                # Attribute ALL citations to publication year (regardless of start_year)
+                                # The start_year only affects what we display, not what we count
                                 pub_year = pub['publication_year']
-                                if pub_year and pub_year >= start_year:
+                                if pub_year:
                                     citations_by_year[pub_year] += citation_count
                         else:
                             failed_lookups += 1
@@ -901,6 +905,13 @@ class ORCIDAPIClient:
                         'citations': 0,
                         'cumulative_citations': 0
                     })
+            
+            print(f"📊 Citation analysis complete:")
+            print(f"   📈 Total citations: {total_citations}")
+            print(f"   📚 Publications analyzed: {len(publications_with_dois)}")
+            print(f"   ✅ Successful lookups: {successful_lookups}")
+            print(f"   ❌ Failed lookups: {failed_lookups}")
+            print(f"   ⏱️  Analysis time: {round(total_analysis_time, 1)}s")
             
             return {
                 'yearly_data': yearly_data,

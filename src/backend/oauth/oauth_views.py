@@ -12,7 +12,8 @@ import requests
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Sum
 from config.models import User, CitationTimeSeries, Work
-import datetime
+from django.utils import timezone
+from datetime import datetime
 
 # Add import for our ORCID API client
 from integrations.orcid_api import ORCIDAPIClient
@@ -85,8 +86,8 @@ def oauth_callback(request):
     This view MUST be associated with the redirect URI
     
     Handles the redirect from ORCID after user authorization.
-    This automatically exchanges the authorization code for tokens
-    and creates/logs in the user.
+    This automatically exchanges the authorization code for tokens,
+    creates/updates the user in database, and logs them in.
     
     Query parameters:
     - code: Authorization code from ORCID
@@ -122,32 +123,90 @@ def oauth_callback(request):
         )
         
         logger.info(f"Successfully authenticated user with ORCID iD: {orcid_id}")
-        logger.info(f"Access Token: {access_token}")
-        logger.info(f"ORCID ID: {orcid_id}")
         
-        # Here you would typically:
-        # 1. Create or get user from database
-        # 2. Store the access token (encrypted)
-        # 3. Log the user in
-        # 4. Redirect to frontend with success
+        # Get user identity information from ORCID API
+        orcid_client = ORCIDAPIClient(access_token=access_token, orcid_id=orcid_id)
+        user_identity = orcid_client.get_user_identity_info()
         
-        # For now, we'll store in session and redirect
+        # Create or update user in database
+        user, created = User.objects.get_or_create(
+            orcid_id=orcid_id,
+            defaults={
+                'username': user_identity.get('name', str(orcid_id)),  # Use ORCID ID as fallback username initially
+                'orcid_access_token': access_token,
+                'orcid_refresh_token': token_response.get('refresh_token', ''),
+                'display_name': user_identity.get('name', ''),
+                'email': user_identity.get('email', ''),
+                'last_orcid_sync': timezone.now()
+            }
+        )
+        
+        if not created:
+            # Update existing user with new token and info
+            user.orcid_access_token = access_token
+            user.orcid_refresh_token = token_response.get('refresh_token', '')
+            user.last_orcid_sync = timezone.now()
+            
+            # Update display name and email if they're empty or different
+            if not user.display_name and user_identity.get('name'):
+                user.display_name = user_identity.get('name')
+            if not user.email and user_identity.get('email'):
+                user.email = user_identity.get('email')
+            
+            user.save()
+            logger.info(f"Updated existing user: {user.username} ({orcid_id})")
+        else:
+            logger.info(f"Created new user: {user.username} ({orcid_id})")
+        
+        # Log the user in
+        login(request, user)
+        
+        # Store additional session data for compatibility
         request.session['orcid_id'] = orcid_id
         request.session['orcid_access_token'] = access_token
-        request.session['orcid_name'] = token_response.get('name', '')
+        request.session['orcid_name'] = user_identity.get('name', '')
         
         # Force session save and log session details
         request.session.save()
         logger.info(f"Session saved with key: {request.session.session_key}")
-        logger.info(f"Session data after save: {dict(request.session)}")
-        logger.info(f"Session age: {request.session.get_session_cookie_age()}")
+        logger.info(f"User logged in: {user.username}")
+        
+        # Populate database with user's publication data (asynchronously)
+        if created or not user.last_orcid_sync:
+            logger.info(f"🔄 Starting background population of publication data for {user.username}")
+            try:
+                # Import here to avoid circular imports
+                from django.core.management import call_command
+                import threading
+                
+                def populate_user_data():
+                    """Background task to populate user data"""
+                    try:
+                        logger.info(f"📚 Populating publications for ORCID ID: {orcid_id}")
+                        call_command('populate_user_with_citations', 
+                                   orcid_id=orcid_id, 
+                                   max_publications=15,
+                                   skip_citations=False,
+                                   force=True,  # Update existing user data
+                                   verbosity=0)  # Reduce verbosity for background task
+                        logger.info(f"✅ Successfully populated data for {user.username}")
+                    except Exception as e:
+                        logger.error(f"❌ Failed to populate data for {user.username}: {str(e)}")
+                
+                # Start background thread to populate data
+                thread = threading.Thread(target=populate_user_data)
+                thread.daemon = True  # Thread will die when main program exits
+                thread.start()
+                
+            except Exception as e:
+                logger.error(f"Failed to start background population: {str(e)}")
         
         # Redirect to frontend with success
         frontend_url = config('FRONTEND_URL', default='http://localhost:8080')
         return redirect(f"{frontend_url}/auth/success?orcid_id={orcid_id}")
         
     except Exception as e:
-        logger.error(f"Failed to exchange authorization code: {str(e)}")
+        logger.error(f"Failed to exchange authorization code or create user: {str(e)}")
         frontend_url = config('FRONTEND_URL', default='http://localhost:8080')
         return redirect(f"{frontend_url}/auth/error?error=token_exchange_failed")
 
@@ -270,9 +329,9 @@ def get_citation_metrics(request):
                     if years_with_cit else 0
                 )
 
-                total_pubs = Work.objects.filter(user=user).count()
+                total_pubs = Work.objects.filter(authors__user=user).count()
                 pubs_with_cit = Work.objects.filter(
-                    user=user, citation_count__gt=0
+                    authors__user=user, citation_count__gt=0
                 ).count()
 
                 h_idx_approx = min(
@@ -294,11 +353,11 @@ def get_citation_metrics(request):
                 logger.info(
                     "Citation metrics served from DB for ORCID %s", orcid_id
                 )
-
                 return JsonResponse(
                     {"success": True, "citation_metrics": citation_metrics}
                 )
 
+        logger.info("User not found in database, fetching from ORCID API")
         client = ORCIDAPIClient(access_token="", orcid_id=orcid_id)
         citation_metrics = client.get_citation_metrics_for_dashboard()
 
@@ -450,32 +509,59 @@ def quick_citation_test(request):
 def get_current_user_identity(request):
     """
     Get current authenticated user's identity information
-    Uses ORCID ID from session if available
+    Uses Django authenticated user or falls back to session data
     """
     try:
         # Debug: Log request details
         logger.info(f"Request from: {request.META.get('HTTP_ORIGIN', 'Unknown origin')}")
-        logger.info(f"Request cookies: {request.COOKIES}")
+        logger.info(f"Django user authenticated: {request.user.is_authenticated}")
         logger.info(f"Session key: {request.session.session_key}")
-        logger.info(f"Session data: {dict(request.session)}")
         
-        # Check if user has ORCID ID in session
+        # Try to get user from Django authentication first
+        if request.user.is_authenticated and hasattr(request.user, 'orcid_id') and request.user.orcid_id:
+            user = request.user
+            orcid_id = user.orcid_id
+            access_token = user.orcid_access_token or ''
+            
+            logger.info(f"Using Django authenticated user: {user.username} ({orcid_id})")
+            
+            # Create ORCID API client
+            client = ORCIDAPIClient(access_token=access_token, orcid_id=orcid_id)
+            
+            # Get user identity information
+            user_identity = client.get_user_identity_info()
+            
+            # Add Django user info
+            user_identity['authenticated'] = True
+            user_identity['user_id'] = str(user.id)
+            user_identity['username'] = user.username
+            user_identity['display_name'] = user.display_name
+            user_identity['last_orcid_sync'] = user.last_orcid_sync.isoformat() if user.last_orcid_sync else None
+            
+            logger.info(f"Successfully retrieved current user identity for Django user: {user.username}")
+            
+            return JsonResponse({
+                'success': True,
+                'user_identity': user_identity
+            })
+        
+        # Fallback to session-based authentication
         orcid_id = request.session.get('orcid_id')
         
         if not orcid_id:
-            logger.info(f"No ORCID ID found in session. Session keys: {list(request.session.keys())}")
+            logger.info(f"No authenticated user found. Session keys: {list(request.session.keys())}")
             return JsonResponse({
                 'error': 'No authenticated ORCID user found',
                 'authenticated': False,
                 'debug_info': {
                     'session_key': request.session.session_key,
                     'session_keys': list(request.session.keys()),
-                    'has_session_data': bool(dict(request.session)),
+                    'django_user_authenticated': request.user.is_authenticated,
                     'origin': request.META.get('HTTP_ORIGIN', 'Unknown')
                 }
             }, status=401)
         
-        # Create ORCID API client
+        # Create ORCID API client with session data
         access_token = request.session.get('orcid_access_token', '')
         client = ORCIDAPIClient(access_token=access_token, orcid_id=orcid_id)
         
@@ -489,7 +575,7 @@ def get_current_user_identity(request):
             'session_orcid_id': orcid_id
         }
         
-        logger.info(f"Successfully retrieved current user identity for ORCID ID: {orcid_id}")
+        logger.info(f"Successfully retrieved current user identity from session for ORCID ID: {orcid_id}")
         
         return JsonResponse({
             'success': True,
