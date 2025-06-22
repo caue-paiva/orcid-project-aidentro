@@ -14,6 +14,8 @@ from django.db.models import Sum
 from config.models import User, CitationTimeSeries, Work
 from django.utils import timezone
 from datetime import datetime
+import concurrent.futures
+import threading
 
 # Add import for our ORCID API client
 from integrations.orcid_api import ORCIDAPIClient
@@ -670,3 +672,225 @@ def simple_test(request):
     response['Access-Control-Allow-Credentials'] = 'true'
     
     return response 
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def search_researchers(request):
+    """
+    Search for researchers in the ORCID registry and enrich results with profile data
+    
+    Query parameters:
+    - q: Search query using Solr/Lucene syntax (required)
+    - rows: Number of results to return (default: 10, max: 50) - reduced for enrichment
+    - start: Starting offset for pagination (default: 0)
+    
+    Example queries:
+    - family-name:Smith
+    - given-names:John AND family-name:Doe
+    - affiliation-org-name:"University of São Paulo"
+    - text:machine learning
+    """
+    try:
+        # Get search query parameter
+        query = request.GET.get('q')
+        
+        if not query:
+            return JsonResponse({
+                'error': 'Query parameter "q" is required',
+                'examples': [
+                    'family-name:Smith',
+                    'given-names:John AND family-name:Doe',
+                    'affiliation-org-name:"University"',
+                    'text:"machine learning"'
+                ]
+            }, status=400)
+        
+        # Get pagination parameters with adjusted defaults for enrichment
+        try:
+            rows = int(request.GET.get('rows', 10))
+            start = int(request.GET.get('start', 0))
+        except ValueError:
+            return JsonResponse({
+                'error': 'rows and start parameters must be integers'
+            }, status=400)
+        
+        # Validate parameters - reduced max for enrichment
+        if rows < 1 or rows > 50:
+            return JsonResponse({
+                'error': 'rows parameter must be between 1 and 50'
+            }, status=400)
+        
+        if start < 0:
+            return JsonResponse({
+                'error': 'start parameter must be non-negative'
+            }, status=400)
+        
+      
+        # Create ORCID API client for search
+        client = ORCIDAPIClient(orcid_id="0000-0000-0000-0000")
+        
+        # Perform the search
+        search_results = client.search_researchers(query=query, rows=rows, start=start)
+        
+        # Extract relevant information for easier frontend consumption
+        formatted_results = {
+            'query': query,
+            'total_results': search_results.get('num-found', 0),
+            'start': start,
+            'rows': rows,
+            'results': []
+        }
+        
+        # Multi-threaded profile enrichment function
+        def fetch_researcher_profile(result):
+            """Fetch profile information for a single researcher"""
+            orcid_id = result.get('orcid-identifier', {}).get('path')
+            
+            if not orcid_id:
+                return {
+                    'orcid_id': None,
+                    'orcid_uri': None,
+                    'display_name': 'Invalid ORCID ID'
+                }
+            
+            try:
+                # Create client for this specific ORCID ID
+                profile_client = ORCIDAPIClient(orcid_id=orcid_id)
+                
+                # Get basic profile information
+                person_info = profile_client.get_researcher_person_info()
+                
+                # Extract name information
+                name_info = person_info.get('name', {}) if person_info else {}
+                given_names = name_info.get('given-names', {}).get('value') if name_info.get('given-names') else None
+                family_name = name_info.get('family-name', {}).get('value') if name_info.get('family-name') else None
+                credit_name = name_info.get('credit-name', {}).get('value') if name_info.get('credit-name') else None
+                
+                # Create display name
+                if credit_name:
+                    display_name = credit_name
+                elif given_names and family_name:
+                    display_name = f"{given_names} {family_name}"
+                elif family_name:
+                    display_name = family_name
+                elif given_names:
+                    display_name = given_names
+                else:
+                    display_name = "Name not available"
+                
+                # Get employment information for current affiliation
+                current_affiliation = None
+                try:
+                    employments = profile_client.get_researcher_employments()
+                    if employments and 'affiliation-group' in employments:
+                        for group in employments['affiliation-group']:
+                            for summary in group.get('summaries', []):
+                                employment = summary.get('employment-summary', {})
+                                if employment.get('end-date') is None:  # Current employment
+                                    org_name = employment.get('organization', {}).get('name')
+                                    if org_name:
+                                        current_affiliation = org_name
+                                        break
+                            if current_affiliation:
+                                break
+                except Exception:
+                    pass  # Continue without affiliation info
+                
+                # Get basic works count
+                works_count = 0
+                try:
+                    works_data = profile_client.get_researcher_works()
+                    works_count = len(works_data.get('group', []))
+                except Exception:
+                    pass
+                
+                # Build enriched result
+                return {
+                    'orcid_id': orcid_id,
+                    'orcid_uri': f"https://orcid.org/{orcid_id}",
+                    'given_names': given_names,
+                    'family_name': family_name,
+                    'credit_name': credit_name,
+                    'display_name': display_name,
+                    'current_affiliation': current_affiliation,
+                    'works_count': works_count,
+                    'profile_url': f"https://orcid.org/{orcid_id}"
+                }
+                
+            except Exception as e:
+                # If we can't get profile info, add basic info
+                logger.warning(f"Failed to enrich profile for {orcid_id}: {str(e)}")
+                return {
+                    'orcid_id': orcid_id,
+                    'orcid_uri': f"https://orcid.org/{orcid_id}",
+                    'given_names': None,
+                    'family_name': None,
+                    'credit_name': None,
+                    'display_name': "Profile not accessible",
+                    'current_affiliation': None,
+                    'works_count': 0,
+                    'profile_url': f"https://orcid.org/{orcid_id}",
+                    'error': str(e)
+                }
+
+        # Get all search results
+        search_result_list = search_results.get('result', [])
+        
+        # Use ThreadPoolExecutor for concurrent profile fetching
+        max_workers = min(len(search_result_list), 8)  # Limit concurrent threads to avoid overwhelming ORCID API
+        
+        if search_result_list:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all profile fetch tasks
+                future_to_result = {
+                    executor.submit(fetch_researcher_profile, result): result 
+                    for result in search_result_list
+                }
+                
+                # Collect results as they complete, with timeout
+                for future in concurrent.futures.as_completed(future_to_result, timeout=30):
+                    try:
+                        enriched_result = future.result(timeout=10)  # 10 second timeout per individual request
+                        formatted_results['results'].append(enriched_result)
+                    except concurrent.futures.TimeoutError:
+                        logger.warning("Profile fetch timed out for a researcher")
+                        # Add basic result for timed out request
+                        original_result = future_to_result[future]
+                        orcid_id = original_result.get('orcid-identifier', {}).get('path')
+                        formatted_results['results'].append({
+                            'orcid_id': orcid_id,
+                            'orcid_uri': f"https://orcid.org/{orcid_id}" if orcid_id else None,
+                            'display_name': "Request timed out",
+                            'error': 'timeout'
+                        })
+                    except Exception as e:
+                        logger.error(f"Unexpected error in profile fetch: {str(e)}")
+                        # Add basic result for failed request
+                        original_result = future_to_result[future]
+                        orcid_id = original_result.get('orcid-identifier', {}).get('path')
+                        formatted_results['results'].append({
+                            'orcid_id': orcid_id,
+                            'orcid_uri': f"https://orcid.org/{orcid_id}" if orcid_id else None,
+                            'display_name': "Fetch failed",
+                            'error': str(e)
+                        })
+        
+        logger.info(f"Successfully searched researchers with query: {query}, found {formatted_results['total_results']} results")
+        
+        return JsonResponse({
+            'success': True,
+            'search_results': formatted_results
+        })
+        
+    except Exception as e:
+        logger.error(f"Error searching researchers: {str(e)}")
+        return JsonResponse({
+            'error': 'Failed to search researchers',
+            'details': str(e),
+            'suggestions': [
+                'Check if the search query uses valid Solr/Lucene syntax',
+                'Try simplifying the search query',
+                'Verify internet connectivity for ORCID API access',
+                'Check server logs for detailed error information'
+            ]
+        }, status=500) 

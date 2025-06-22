@@ -20,7 +20,8 @@ from oauth.oauth_views import (
     oauth_authorize, oauth_callback, oauth_status, 
     get_user_identity, get_current_user_identity, 
     debug_session, health_check, simple_test,
-    get_citation_metrics, get_citation_analysis, test_citation_analysis, quick_citation_test
+    get_citation_metrics, get_citation_analysis, test_citation_analysis, quick_citation_test,
+    search_researchers
 )
 
 urlpatterns = [
@@ -37,6 +38,8 @@ urlpatterns = [
     path('api/citation-analysis/', get_citation_analysis, name='get_citation_analysis'),
     path('api/test-citation-analysis/', test_citation_analysis, name='test_citation_analysis'),
     path('api/quick-citation-test/', quick_citation_test, name='quick_citation_test'),
+    # Search endpoints
+    path('api/search-researchers/', search_researchers, name='search_researchers'),
     # Debug endpoint
     path('api/debug-session/', debug_session, name='debug_session'),
     # Health check endpoint

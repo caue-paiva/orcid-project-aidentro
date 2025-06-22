@@ -20,7 +20,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 class ORCIDAPIClient:
     """Client for interacting with ORCID Public API, instantiated with a given access token or orcid_id """
     
-    def __init__(self, access_token: str, orcid_id: str, base_url: str = None):
+    def __init__(self,  orcid_id: str, base_url: str = None, access_token: str = ""):
         """
         Initialize ORCID API client.
         
@@ -72,7 +72,7 @@ class ORCIDAPIClient:
             response.raise_for_status()
             return response.json()
     
-    def search_researchers(self, query: str, rows: int = 20, start: int = 0) -> Dict:
+    def search_researchers(self, query: str, rows: int = 50, start: int = 0) -> Dict:
         """
         Search for researchers in the ORCID registry.
         
