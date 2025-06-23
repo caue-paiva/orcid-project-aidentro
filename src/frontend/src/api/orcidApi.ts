@@ -413,4 +413,66 @@ export const searchResearchers = async (params: SearchResearchersParams): Promis
     console.error('Error searching researchers:', error);
     throw error;
   }
+};
+
+// Researcher papers API
+export interface ResearcherPaper {
+  title: string;
+  type: string;
+  publication_year: number;
+  journal: string;
+  dois: string[];
+  url?: string;
+}
+
+export interface ResearcherPapersResponse {
+  success: boolean;
+  orcid_id: string;
+  total_works_found: number;
+  papers_returned: number;
+  format: string;
+  limit_applied: number;
+  papers: ResearcherPaper[];
+  statistics: {
+    total_papers: number;
+    papers_with_dois: number;
+    papers_with_journals: number;
+    publication_years: {
+      earliest: number;
+      latest: number;
+      total_years_active: number;
+    };
+    types: Record<string, number>;
+  };
+}
+
+export const getResearcherPapers = async (orcidId: string, limit: number = 50): Promise<ResearcherPapersResponse> => {
+  try {
+    const queryParams = new URLSearchParams({
+      orcid_id: orcidId,
+      limit: limit.toString(),
+    });
+
+    console.log('📄 Fetching researcher papers for ORCID ID:', orcidId);
+    
+    const response = await fetch(`${BACKEND_URL}/api/researcher-papers/?${queryParams}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('✅ Researcher papers received:', data);
+    
+    return data;
+  } catch (error) {
+    console.error('❌ Error fetching researcher papers:', error);
+    throw error;
+  }
 }; 

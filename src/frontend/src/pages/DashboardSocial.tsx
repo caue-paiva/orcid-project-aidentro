@@ -4,8 +4,9 @@ import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import MetricsCard from "@/components/dashboard/MetricsCard";
 import CitationChart from "@/components/dashboard/CitationChart";
+import RecentPublications from "@/components/dashboard/RecentPublications";
 import UserProfile from "@/components/UserProfile";
-import { getUserIdentity, UserIdentity, getCitationMetrics } from "@/api/orcidApi";
+import { getUserIdentity, UserIdentity, getCitationMetrics, getResearcherPapers, ResearcherPapersResponse } from "@/api/orcidApi";
 import { CitationMetrics } from "@/types";
 import { Book, BookUser, Award, Users, RefreshCw, ArrowLeft, ExternalLink, User } from "lucide-react";
 import { toast } from "sonner";
@@ -24,6 +25,11 @@ const DashboardSocial = () => {
   const [citationMetrics, setCitationMetrics] = useState<CitationMetrics | null>(null);
   const [loadingCitations, setLoadingCitations] = useState(false);
   const [citationError, setCitationError] = useState<string | null>(null);
+
+  // Papers state
+  const [papers, setPapers] = useState<ResearcherPapersResponse | null>(null);
+  const [loadingPapers, setLoadingPapers] = useState(false);
+  const [papersError, setPapersError] = useState<string | null>(null);
 
   // Validate required parameters
   useEffect(() => {
@@ -52,8 +58,9 @@ const DashboardSocial = () => {
         const identity = await getUserIdentity(orcidId);
         setUserIdentity(identity);
         
-        // Auto-fetch citation data
+        // Auto-fetch citation data and papers
         fetchCitationData(orcidId);
+        fetchPapers(orcidId);
       } catch (error) {
         console.error("Failed to fetch user identity:", error);
         setUserError("Failed to load researcher profile");
@@ -90,10 +97,35 @@ const DashboardSocial = () => {
     }
   };
 
-  // Function to refresh citation data
+  // Fetch papers data
+  const fetchPapers = async (targetOrcidId?: string) => {
+    try {
+      setLoadingPapers(true);
+      setPapersError(null);
+      
+      const orcidToUse = targetOrcidId || orcidId;
+      if (!orcidToUse) {
+        throw new Error("No ORCID ID available for papers");
+      }
+      
+      console.log("📄 Fetching papers for:", orcidToUse);
+      const papersData = await getResearcherPapers(orcidToUse, 10);
+      console.log("✅ Papers received:", papersData);
+      
+      setPapers(papersData);
+    } catch (error) {
+      console.error("❌ Error fetching papers:", error);
+      setPapersError(error instanceof Error ? error.message : 'Failed to fetch papers');
+    } finally {
+      setLoadingPapers(false);
+    }
+  };
+
+  // Function to refresh citation data and papers
   const handleRefreshCitations = () => {
     if (orcidId) {
       fetchCitationData(orcidId);
+      fetchPapers(orcidId);
     }
   };
 
@@ -295,6 +327,13 @@ const DashboardSocial = () => {
               isLoading={loadingCitations}
               error={citationError || undefined}
             />
+            
+            {/* Recent Publications */}
+            <RecentPublications 
+              publications={[]} 
+              papers={papers?.papers || []}
+              isLoading={loadingPapers}
+            />
           </div>
           
           <div className="space-y-4">
@@ -368,17 +407,7 @@ const DashboardSocial = () => {
           </div>
         </div>
 
-        {/* Debug Info (Development Only) */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="fixed bottom-4 left-4 bg-black text-white p-2 text-xs rounded max-w-sm">
-            <div>ORCID: {orcidId || 'null'}</div>
-            <div>Name: {displayName || 'null'}</div>
-            <div>Institution: {institution || 'null'}</div>
-            <div>User: {userIdentity ? 'loaded' : 'null'}</div>
-            <div>Citations: {citationMetrics ? 'loaded' : 'null'}</div>
-            <div>Loading: {loadingCitations ? 'true' : 'false'}</div>
-          </div>
-        )}
+
       </div>
     </Layout>
   );

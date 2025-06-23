@@ -894,3 +894,196 @@ def search_researchers(request):
                 'Check server logs for detailed error information'
             ]
         }, status=500) 
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_researcher_papers(request):
+    """
+    Get papers/publications for a given ORCID ID
+    
+    Query parameters:
+    - orcid_id: ORCID identifier (required)
+    - format: Response format - 'detailed' or 'summary' (default: 'summary')
+    - limit: Maximum number of papers to return (default: 50, max: 200)
+    
+    Returns:
+        JSON response with researcher's papers/publications
+    """
+    try:
+        orcid_id = request.GET.get('orcid_id')
+        
+        if not orcid_id:
+            return JsonResponse({
+                'error': 'orcid_id parameter is required',
+                'example': '/api/researcher-papers/?orcid_id=0000-0000-0000-0000'
+            }, status=400)
+        
+        # Validate ORCID ID format
+        if not ORCIDAPIClient.validate_orcid_id_format(orcid_id):
+            return JsonResponse({
+                'error': 'Invalid ORCID ID format',
+                'expected_format': '0000-0000-0000-0000',
+                'received': orcid_id
+            }, status=400)
+        
+        # Get format and limit parameters
+        response_format = request.GET.get('format', 'summary').lower()
+        try:
+            limit = int(request.GET.get('limit', 50))
+            limit = min(max(1, limit), 200)  # Ensure limit is between 1 and 200
+        except ValueError:
+            limit = 50
+        
+        # Create ORCID API client
+        client = ORCIDAPIClient(access_token="", orcid_id=orcid_id)
+        
+        # Get researcher's works
+        works_data = client.get_researcher_works()
+        
+        # Format the papers/publications data
+        papers = []
+        processed_count = 0
+        
+        for group in works_data.get('group', []):
+            if processed_count >= limit:
+                break
+                
+            for work_summary in group.get('work-summary', []):
+                if processed_count >= limit:
+                    break
+                
+                # Extract basic information
+                title_info = work_summary.get('title', {})
+                title = title_info.get('title', {}).get('value', 'Unknown Title') if title_info else 'Unknown Title'
+                
+                # Extract publication date
+                pub_date = work_summary.get('publication-date')
+                publication_year = None
+                publication_date = None
+                
+                if pub_date:
+                    if pub_date.get('year'):
+                        publication_year = int(pub_date['year']['value'])
+                    
+                    # Build full date if available
+                    date_parts = []
+                    if pub_date.get('year'):
+                        date_parts.append(pub_date['year']['value'])
+                    if pub_date.get('month'):
+                        date_parts.append(f"{int(pub_date['month']['value']):02d}")
+                    if pub_date.get('day'):
+                        date_parts.append(f"{int(pub_date['day']['value']):02d}")
+                    
+                    if len(date_parts) >= 1:
+                        publication_date = '-'.join(date_parts)
+                
+                # Extract journal information
+                journal_title = None
+                journal_info = work_summary.get('journal-title')
+                if journal_info and journal_info.get('value'):
+                    journal_title = journal_info['value']
+                
+                # Extract DOIs and external identifiers
+                external_ids = work_summary.get('external-ids', {}).get('external-id', [])
+                dois = []
+                other_ids = []
+                
+                for ext_id in external_ids:
+                    id_type = ext_id.get('external-id-type', '').lower()
+                    id_value = ext_id.get('external-id-value', '')
+                    
+                    if id_type == 'doi':
+                        dois.append(id_value)
+                    else:
+                        other_ids.append({
+                            'type': id_type,
+                            'value': id_value
+                        })
+                
+                # Extract URL
+                url = None
+                url_info = work_summary.get('url')
+                if url_info and url_info.get('value'):
+                    url = url_info['value']
+                
+                # Build paper object based on format
+                if response_format == 'detailed':
+                    paper = {
+                        'title': title,
+                        'type': work_summary.get('type', 'Unknown'),
+                        'publication_year': publication_year,
+                        'publication_date': publication_date,
+                        'journal': journal_title,
+                        'dois': dois,
+                        'other_identifiers': other_ids,
+                        'url': url,
+                        'put_code': work_summary.get('put-code'),
+                        'path': work_summary.get('path'),
+                        'created_date': work_summary.get('created-date', {}).get('value') if work_summary.get('created-date') else None,
+                        'last_modified_date': work_summary.get('last-modified-date', {}).get('value') if work_summary.get('last-modified-date') else None,
+                        'source': work_summary.get('source', {}).get('source-name', {}).get('value') if work_summary.get('source') else None,
+                        'visibility': work_summary.get('visibility')
+                    }
+                else:  # summary format
+                    paper = {
+                        'title': title,
+                        'type': work_summary.get('type', 'Unknown'),
+                        'publication_year': publication_year,
+                        'journal': journal_title,
+                        'dois': dois,
+                        'url': url
+                    }
+                
+                papers.append(paper)
+                processed_count += 1
+        
+        # Sort papers by publication year (newest first)
+        papers.sort(key=lambda x: x.get('publication_year') or 0, reverse=True)
+        
+        # Build response
+        response_data = {
+            'success': True,
+            'orcid_id': orcid_id,
+            'total_works_found': len(works_data.get('group', [])),
+            'papers_returned': len(papers),
+            'format': response_format,
+            'limit_applied': limit,
+            'papers': papers
+        }
+        
+        # Add summary statistics
+        if papers:
+            years = [p.get('publication_year') for p in papers if p.get('publication_year')]
+            response_data['statistics'] = {
+                'total_papers': len(papers),
+                'papers_with_dois': len([p for p in papers if p.get('dois')]),
+                'papers_with_journals': len([p for p in papers if p.get('journal')]),
+                'publication_years': {
+                    'earliest': min(years) if years else None,
+                    'latest': max(years) if years else None,
+                    'total_years_active': len(set(years)) if years else 0
+                },
+                'types': {}
+            }
+            
+            # Count paper types
+            for paper in papers:
+                paper_type = paper.get('type', 'Unknown')
+                response_data['statistics']['types'][paper_type] = response_data['statistics']['types'].get(paper_type, 0) + 1
+        
+        logger.info(f"Successfully retrieved {len(papers)} papers for ORCID ID: {orcid_id}")
+        
+        return JsonResponse(response_data)
+        
+    except Exception as e:
+        logger.error(f"Error getting researcher papers: {str(e)}")
+        return JsonResponse({
+            'error': 'Failed to retrieve researcher papers',
+            'details': str(e),
+            'suggestions': [
+                'Verify the ORCID ID format (0000-0000-0000-0000)',
+                'Check if the ORCID ID exists and has public data',
+                'Try reducing the limit parameter if timeout occurs',
+                'Check server logs for detailed error information'
+            ]
+        }, status=500) 

@@ -41,9 +41,6 @@ import {
   ToggleGroupItem,
 } from "@/components/ui/toggle-group";
 
-// Import new utilities for ORCID integration
-import { buildORCIDQuery, applyClientSideFilters } from "@/utils/orcidQueryBuilder";
-import { searchResearchers, SearchResearchersResponse } from "@/api/orcidApi";
 
 // Import new utilities for ORCID integration
 import { buildORCIDQuery, applyClientSideFilters } from "@/utils/orcidQueryBuilder";
@@ -60,12 +57,8 @@ const Search = () => {
   const [sortBy, setSortBy] = useState("relevance");
   const [showFilters, setShowFilters] = useState(false);
   const [results, setResults] = useState<any[]>([]);
-  const [results, setResults] = useState<any[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [totalResults, setTotalResults] = useState(0);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [searchError, setSearchError] = useState<string | null>(null);
   const [totalResults, setTotalResults] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
   const [searchError, setSearchError] = useState<string | null>(null);

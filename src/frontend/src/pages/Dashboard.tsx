@@ -7,7 +7,7 @@ import RecentPublications from "@/components/dashboard/RecentPublications";
 import CitationChart from "@/components/dashboard/CitationChart";
 import UserProfile from "@/components/UserProfile";
 import UserInfoModal from "@/components/UserInfoModal";
-import { getCurrentUserIdentity, getUserIdentity, UserIdentity, debugSession, healthCheck, getCitationMetrics } from "@/api/orcidApi";
+import { getCurrentUserIdentity, getUserIdentity, UserIdentity, getCitationMetrics, getResearcherPapers, ResearcherPapersResponse } from "@/api/orcidApi";
 import { getStoredOrcidId, isOrcidAuthenticated, clearOrcidAuth } from "@/utils/orcidAuth";
 import { CitationMetrics } from "@/types";
 import { Book, FilePlus, Users, Award, BookUser, Lightbulb, User, RefreshCw } from "lucide-react";
@@ -31,6 +31,15 @@ const Dashboard = () => {
   const [demoCitationMetrics, setDemoCitationMetrics] = useState<CitationMetrics | null>(null);
   const [loadingDemoData, setLoadingDemoData] = useState(false);
 
+  // Papers state
+  const [papers, setPapers] = useState<ResearcherPapersResponse | null>(null);
+  const [loadingPapers, setLoadingPapers] = useState(false);
+  const [papersError, setPapersError] = useState<string | null>(null);
+  
+  // Demo papers state
+  const [demoPapers, setDemoPapers] = useState<ResearcherPapersResponse | null>(null);
+  const [loadingDemoPapers, setLoadingDemoPapers] = useState(false);
+
   // Fetch current user's ORCID identity
   useEffect(() => {
     const fetchUserIdentity = async () => {
@@ -49,14 +58,16 @@ const Dashboard = () => {
           identity.authenticated = true; // Mark as authenticated since we have stored credentials
           setUserIdentity(identity);
           
-          // Auto-fetch citation data for authenticated users
+          // Auto-fetch citation data and papers for authenticated users
           fetchCitationData(storedOrcidId);
+          fetchPapers(storedOrcidId);
         } else {
           console.log('No stored ORCID ID found, loading demo data');
           setUserIdentity(null);
           
-          // Fetch demo citation data for non-authenticated users
+          // Fetch demo citation data and papers for non-authenticated users
           fetchDemoCitationData();
+          fetchDemoPapers();
         }
       } catch (error) {
         console.error("Failed to fetch user identity:", error);
@@ -65,6 +76,7 @@ const Dashboard = () => {
         clearOrcidAuth();
         // Still try to load demo data
         fetchDemoCitationData();
+        fetchDemoPapers();
       } finally {
         setLoadingUser(false);
       }
@@ -116,48 +128,75 @@ const Dashboard = () => {
     }
   };
 
+  // Fetch papers for authenticated user
+  const fetchPapers = async (orcidId?: string) => {
+    try {
+      setLoadingPapers(true);
+      setPapersError(null);
+      
+      const targetOrcidId = orcidId || getStoredOrcidId();
+      if (!targetOrcidId) {
+        throw new Error("No ORCID ID available for fetching papers");
+      }
+      
+      console.log("📄 Fetching papers for:", targetOrcidId);
+      const papersData = await getResearcherPapers(targetOrcidId, 10);
+      console.log("✅ Papers received:", papersData);
+      
+      setPapers(papersData);
+    } catch (error) {
+      console.error("❌ Error fetching papers:", error);
+      setPapersError(error instanceof Error ? error.message : 'Failed to fetch papers');
+    } finally {
+      setLoadingPapers(false);
+    }
+  };
+
+  // Fetch demo papers from the demo ORCID ID
+  const fetchDemoPapers = async () => {
+    try {
+      setLoadingDemoPapers(true);
+      
+      console.log("📄 Fetching demo papers for:", DEMO_ORCID_ID);
+      const papersData = await getResearcherPapers(DEMO_ORCID_ID, 10);
+      console.log("✅ Demo papers received:", papersData);
+      
+      setDemoPapers(papersData);
+    } catch (error) {
+      console.error("❌ Error fetching demo papers:", error);
+      // On error, we'll just show empty data
+      setDemoPapers(null);
+    } finally {
+      setLoadingDemoPapers(false);
+    }
+  };
+
   // Determine display name and authentication status
   const isAuthenticated = userIdentity?.authenticated || false;
   const displayName = isAuthenticated ? userIdentity.name : 'Guest';
 
-  // Get the appropriate citation metrics to display
+  // Get the appropriate citation metrics and papers to display
   const displayMetrics = isAuthenticated ? citationMetrics : demoCitationMetrics;
   const isLoadingMetrics = isAuthenticated ? loadingCitations : loadingDemoData;
+  
+  const displayPapers = isAuthenticated ? papers : demoPapers;
+  const isLoadingPapersDisplay = isAuthenticated ? loadingPapers : loadingDemoPapers;
 
   // Logout function
   const handleLogout = () => {
     clearOrcidAuth();
     setUserIdentity(null);
     setCitationMetrics(null);
+    setPapers(null);
+    setPapersError(null);
     // Load demo data again
     fetchDemoCitationData();
+    fetchDemoPapers();
     // Optionally redirect or refresh
     window.location.reload();
   };
 
-  // Health check function
-  const handleHealthCheck = async () => {
-    try {
-      const healthData = await healthCheck();
-      console.log('Health Check Data:', healthData);
-      alert(JSON.stringify(healthData, null, 2));
-    } catch (error) {
-      console.error('Health check failed:', error);
-      alert('Health check failed: ' + error);
-    }
-  };
 
-  // Debug function to check session
-  const handleDebugSession = async () => {
-    try {
-      const sessionData = await debugSession();
-      console.log('Session Debug Data:', sessionData);
-      alert(JSON.stringify(sessionData, null, 2));
-    } catch (error) {
-      console.error('Debug session failed:', error);
-      alert('Debug session failed: ' + error);
-    }
-  };
 
   // Function to handle user modal opening
   const handleOpenUserModal = async () => {
@@ -176,13 +215,15 @@ const Dashboard = () => {
     }
   };
 
-  // Function to refresh citation data
+  // Function to refresh citation data and papers
   const handleRefreshCitations = () => {
     const storedOrcidId = getStoredOrcidId();
     if (storedOrcidId) {
       fetchCitationData(storedOrcidId);
+      fetchPapers(storedOrcidId);
     } else {
       fetchDemoCitationData();
+      fetchDemoPapers();
     }
   };
 
@@ -248,21 +289,7 @@ const Dashboard = () => {
               className="flex items-center"
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingMetrics ? 'animate-spin' : ''}`} />
-              {isLoadingMetrics ? 'Loading...' : (isAuthenticated ? 'Refresh Citations' : 'Refresh Demo Data')}
-            </Button>
-            <Button
-              variant="outline"
-              className="flex items-center"
-              onClick={handleHealthCheck}
-            >
-              Health Check
-            </Button>
-            <Button
-              variant="outline"
-              className="flex items-center"
-              onClick={handleDebugSession}
-            >
-              Debug Session
+              {isLoadingMetrics ? 'Loading...' : 'Refresh Citations'}
             </Button>
             <Button
               variant="outline"
@@ -380,7 +407,11 @@ const Dashboard = () => {
             />
             
             {/* Recent Publications */}
-            <RecentPublications publications={[]} />
+            <RecentPublications 
+              publications={[]} 
+              papers={displayPapers?.papers || []}
+              isLoading={isLoadingPapersDisplay}
+            />
           </div>
           
           <div className="space-y-4">
@@ -486,17 +517,7 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Debug Info */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="fixed bottom-4 left-4 bg-black text-white p-2 text-xs rounded">
-            Modal Open: {isUserModalOpen ? 'true' : 'false'} | 
-            User: {userIdentity ? 'exists' : 'null'} | 
-            Auth: {isAuthenticated ? 'true' : 'false'} |
-            Citations: {citationMetrics ? 'loaded' : 'null'} |
-            Demo: {demoCitationMetrics ? 'loaded' : 'null'} |
-            Loading: {isLoadingMetrics ? 'true' : 'false'}
-          </div>
-        )}
+
       </div>
     </Layout>
   );
