@@ -264,7 +264,6 @@ const Dashboard = () => {
   };
 
 
-
   // Function to handle user modal opening
   const handleOpenUserModal = async () => {
     try {
@@ -389,8 +388,9 @@ const Dashboard = () => {
               className="flex items-center"
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingMetrics ? 'animate-spin' : ''}`} />
-              {isLoadingMetrics ? 'Loading...' : 'Refresh Citations'}
+              {isLoadingMetrics ? 'Loading...' : (isAuthenticated ? 'Refresh Citations' : 'Refresh Demo Data')}
             </Button>
+           
             <Button
               variant="outline"
               className="flex items-center"

@@ -9,13 +9,49 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { SearchIcon, UsersIcon, BookIcon } from "lucide-react";
-import { initiateOrcidAuth } from "@/api/orcidApi";
+import { 
+  Search, 
+  Users, 
+  User, 
+  Shield, 
+  BookOpen, 
+  TrendingUp,
+  ArrowRight,
+  Home as HomeIcon
+} from "lucide-react";
+import { isOrcidAuthenticated, getStoredOrcidId } from "@/utils/orcidAuth";
+import { getUserIdentity, UserIdentity, initiateOrcidAuth } from "@/api/orcidApi";
 import { toast } from "sonner";
 
 const Home = () => {
+  const navigate = useNavigate();
+  const [userIdentity, setUserIdentity] = useState<UserIdentity | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const checkAuthentication = async () => {
+      try {
+        if (isOrcidAuthenticated()) {
+          const storedOrcidId = getStoredOrcidId();
+          if (storedOrcidId) {
+            const identity = await getUserIdentity(storedOrcidId);
+            identity.authenticated = true;
+            setUserIdentity(identity);
+          }
+        }
+      } catch (error) {
+        console.error("Erro ao carregar dados do usuário:", error);
+        toast.error("Erro ao carregar dados do usuário");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkAuthentication();
+  }, [navigate]);
+
   const handleOrcidSignIn = () => {
-    toast.info("Redirecting to ORCID authentication...");
+    toast.info("Redirecting to ORCID...");
     initiateOrcidAuth('/authenticate');
   };
 
@@ -25,189 +61,279 @@ const Home = () => {
       <section className="bg-gradient-to-b from-white to-gray-50 py-16 md:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-gray-900">
-              Connect Your <span className="text-orcid-green">Research</span>
-              <br /> and <span className="text-orcid-green">Identity</span>
-            </h1>
-            <p className="mt-6 text-xl text-gray-600 max-w-3xl mx-auto">
-              ORCID provides a persistent digital identifier that distinguishes you
-              from every other researcher. Connect your ID with your professional
-              information: affiliations, grants, publications, peer review, and more.
-            </p>
-            <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-              <Button 
-                onClick={handleOrcidSignIn}
-                className="bg-orcid-green hover:bg-orcid-green/90 text-white px-8 py-6 text-lg"
-              >
-                Sign in with ORCID
-              </Button>
-              <Link to="/orcid-test">
-                <Button variant="outline" className="px-8 py-6 text-lg">
-                  Test Integration
-                </Button>
-              </Link>
-            </div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orcid-green mx-auto"></div>
+            <p className="mt-4 text-gray-600">Carregando...</p>
           </div>
+        </div>
+      </Layout>
+    );
+  }
 
-          <div className="mt-16 md:mt-24 flex justify-center">
-            <div className="bg-white shadow-lg rounded-2xl p-6 md:p-10 max-w-4xl mx-auto">
-              <div className="flex flex-col md:flex-row items-center">
-                <div className="h-20 w-20 rounded-full bg-orcid-green flex items-center justify-center">
-                  <span className="font-bold text-white text-3xl">ID</span>
+  // Show content for both authenticated and non-authenticated users
+
+  return (
+    <Layout>
+      <div className="min-h-screen bg-gray-50">
+        {/* Header Section */}
+        <section className="bg-white border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="flex items-center space-x-3 mb-6">
+              <HomeIcon className="h-8 w-8 text-orcid-green" />
+              <h1 className="text-3xl font-bold text-gray-900">Página Inicial</h1>
+            </div>
+            
+            {userIdentity ? (
+              <div className="bg-gradient-to-r from-orcid-green/10 to-orcid-green/5 rounded-lg p-6">
+                <div className="flex items-center space-x-4">
+                  <div className="h-12 w-12 rounded-full bg-orcid-green flex items-center justify-center">
+                    <span className="font-bold text-white text-lg">ID</span>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">
+                      Bem-vindo, {userIdentity.name}!
+                    </h2>
+                    <p className="text-gray-600">ORCID: {userIdentity.orcid_id}</p>
+                    {userIdentity.current_affiliation && (
+                      <p className="text-sm text-gray-500">
+                        {userIdentity.current_affiliation}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div className="mt-4 md:mt-0 md:ml-8 text-center md:text-left">
-                  <h2 className="text-2xl font-semibold">What is an ORCID iD?</h2>
-                  <p className="mt-2 text-gray-600">
-                    Your ORCID iD is a unique, persistent identifier for you as a researcher
-                    that helps ensure your work is recognized. Over 10 million researchers
-                    worldwide already have an ORCID iD.
+              </div>
+            ) : (
+              <div className="bg-gradient-to-r from-blue-50 to-orcid-green/5 rounded-lg p-6">
+                <div className="text-center">
+                  <h2 className="text-2xl font-semibold text-gray-900 mb-4">
+                    Bem-vindo à Plataforma ORCID
+                  </h2>
+                  <p className="text-gray-600 mb-6">
+                    Conecte-se com sua identidade de pesquisador e explore a rede global de pesquisa
                   </p>
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    <Button 
+                      className="bg-orcid-green hover:bg-green-600 text-white px-6 py-2"
+                      onClick={handleOrcidSignIn}
+                    >
+                      <User className="h-4 w-4 mr-2" />
+                      Conectar com ORCID
+                    </Button>
+                    <Link to="/search">
+                      <Button variant="outline" className="px-6 py-2">
+                        <Search className="h-4 w-4 mr-2" />
+                        Explorar Pesquisadores
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Main Actions Section - Show different content based on login status */}
+        {userIdentity ? (
+          <section className="py-12">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="text-center mb-12">
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                  O que você gostaria de fazer?
+                </h2>
+                <p className="text-gray-600 max-w-2xl mx-auto">
+                  Acesse suas conexões, gerencie seu perfil ou explore pesquisadores na plataforma ORCID.
+                </p>
+              </div>
+
+              <div className="flex flex-col lg:flex-row justify-center items-center lg:items-stretch space-y-6 lg:space-y-0 lg:space-x-6">
+                {/* Ver Conexões */}
+                <Card className="shadow-lg hover:shadow-xl transition-all duration-300 border-t-4 border-t-blue-500 hover:border-t-blue-600 w-full max-w-sm lg:w-80 flex flex-col">
+                  <CardHeader className="text-center flex-shrink-0">
+                    <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Users className="h-8 w-8 text-blue-600" />
+                    </div>
+                    <CardTitle className="text-xl">Ver Conexões</CardTitle>
+                    <CardDescription>
+                      Explore suas conexões profissionais e colaborações
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="text-center flex-grow flex flex-col">
+                    <p className="text-gray-600 mb-6 flex-grow">
+                      Visualize suas conexões com outros pesquisadores, instituições e projetos de pesquisa.
+                    </p>
+                    <Link to="/connections" className="mt-auto">
+                      <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                        <Users className="h-4 w-4 mr-2" />
+                        Ver Conexões
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+
+                {/* Acesso ao Perfil */}
+                <Card className="shadow-lg hover:shadow-xl transition-all duration-300 border-t-4 border-t-green-500 hover:border-t-green-600 w-full max-w-sm lg:w-80 flex flex-col">
+                  <CardHeader className="text-center flex-shrink-0">
+                    <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <User className="h-8 w-8 text-green-600" />
+                    </div>
+                    <CardTitle className="text-xl">Acesso ao Perfil</CardTitle>
+                    <CardDescription>
+                      Gerencie e atualize suas informações pessoais
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="text-center flex-grow flex flex-col">
+                    <p className="text-gray-600 mb-6 flex-grow">
+                      Acesse e edite seu perfil ORCID, publicações, afiliações e outras informações profissionais.
+                    </p>
+                    <Link to="/dashboard" className="mt-auto">
+                      <Button className="w-full bg-green-600 hover:bg-green-700 text-white">
+                        <User className="h-4 w-4 mr-2" />
+                        Acessar Perfil
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+
+                {/* Botão de Pesquisa */}
+                <Card className="shadow-lg hover:shadow-xl transition-all duration-300 border-t-4 border-t-purple-500 hover:border-t-purple-600 w-full max-w-sm lg:w-80 flex flex-col">
+                  <CardHeader className="text-center flex-shrink-0">
+                    <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Search className="h-8 w-8 text-purple-600" />
+                    </div>
+                    <CardTitle className="text-xl">Pesquisar</CardTitle>
+                    <CardDescription>
+                      Encontre pesquisadores e publicações
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="text-center flex-grow flex flex-col">
+                    <p className="text-gray-600 mb-6 flex-grow">
+                      Pesquise por pesquisadores, publicações e instituições na base de dados ORCID.
+                    </p>
+                    <Link to="/search" className="mt-auto">
+                      <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+                        <Search className="h-4 w-4 mr-2" />
+                        Pesquisar
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </section>
+        ) : (
+          <section className="py-12">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="text-center mb-12">
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                  Explore a Plataforma
+                </h2>
+                <p className="text-gray-600 max-w-2xl mx-auto">
+                  Pesquise por pesquisadores e publicações na base de dados ORCID.
+                </p>
+              </div>
+
+              <div className="flex justify-center">
+                {/* Botão de Pesquisa para usuários logados */}
+                <Card className="shadow-lg hover:shadow-xl transition-all duration-300 border-t-4 border-t-purple-500 hover:border-t-purple-600 w-full max-w-sm lg:w-80 flex flex-col">
+                  <CardHeader className="text-center flex-shrink-0">
+                    <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Search className="h-8 w-8 text-purple-600" />
+                    </div>
+                    <CardTitle className="text-xl">Pesquisar</CardTitle>
+                    <CardDescription>
+                      Encontre pesquisadores e publicações
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="text-center flex-grow flex flex-col">
+                    <p className="text-gray-600 mb-6 flex-grow">
+                      Pesquise por pesquisadores, publicações e instituições na base de dados ORCID.
+                    </p>
+                    <Link to="/search" className="mt-auto">
+                      <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+                        <Search className="h-4 w-4 mr-2" />
+                        Pesquisar
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Quick Stats Section - Only show when user is logged in */}
+        {userIdentity && (
+          <section className="py-12 bg-white">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="text-center mb-8">
+                <h3 className="text-xl font-semibold text-gray-900">
+                  Resumo da Sua Atividade
+                </h3>
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 md:p-6 text-center">
+                  <BookOpen className="h-6 w-6 md:h-8 md:w-8 text-blue-600 mx-auto mb-2" />
+                  <p className="text-xl md:text-2xl font-bold text-blue-600">0</p>
+                  <p className="text-xs md:text-sm text-blue-700">Publicações</p>
+                </div>
+                
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 md:p-6 text-center">
+                  <Users className="h-6 w-6 md:h-8 md:w-8 text-green-600 mx-auto mb-2" />
+                  <p className="text-xl md:text-2xl font-bold text-green-600">0</p>
+                  <p className="text-xs md:text-sm text-green-700">Conexões</p>
+                </div>
+                
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 md:p-6 text-center">
+                  <TrendingUp className="h-6 w-6 md:h-8 md:w-8 text-purple-600 mx-auto mb-2" />
+                  <p className="text-xl md:text-2xl font-bold text-purple-600">0</p>
+                  <p className="text-xs md:text-sm text-purple-700">Citações</p>
+                </div>
+                
+                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-4 md:p-6 text-center">
+                  <Shield className="h-6 w-6 md:h-8 md:w-8 text-orange-600 mx-auto mb-2" />
+                  <p className="text-xl md:text-2xl font-bold text-orange-600">100%</p>
+                  <p className="text-xs md:text-sm text-orange-700">Perfil Completo</p>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
+        )}
 
-      {/* Features Section */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h2 className="text-3xl font-bold text-gray-900">Why use ORCID?</h2>
-            <p className="mt-4 text-xl text-gray-600 max-w-3xl mx-auto">
-              ORCID connects researchers with their research to enhance scientific discovery and innovation.
-            </p>
-          </div>
-
-          <div className="mt-16 grid gap-8 md:grid-cols-3">
-            <Card className="shadow-md hover:shadow-xl transition-shadow border-t-4 border-t-orcid-green">
-              <CardHeader>
-                <div className="bg-accent w-12 h-12 rounded-full flex items-center justify-center mb-4">
-                  <SearchIcon className="h-6 w-6 text-orcid-green" />
-                </div>
-                <CardTitle>Distinguish Yourself</CardTitle>
-                <CardDescription>
-                  Stand out in a crowd of researchers with similar names.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p>
-                  Your ORCID iD is a unique identifier that distinguishes you from every
-                  other researcher, ensuring your work is recognized.
-                </p>
-              </CardContent>
-              <CardFooter>
-                <Link to="/researchers/benefits">
-                  <Button variant="link" className="text-orcid-green p-0">
-                    Learn more
+        {/* Quick Actions Footer - Only show when user is logged in */}
+        {userIdentity && (
+          <section className="py-8 bg-gray-100">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex flex-col sm:flex-row justify-center items-center space-y-3 sm:space-y-0 sm:space-x-4 lg:space-x-6">
+                <Link to="/dashboard" className="w-full sm:w-auto">
+                  <Button variant="outline" className="w-full sm:w-auto border-orcid-green text-orcid-green hover:bg-orcid-green hover:text-white">
+                    <TrendingUp className="h-4 w-4 mr-2" />
+                    Dashboard
                   </Button>
                 </Link>
-              </CardFooter>
-            </Card>
-
-            <Card className="shadow-md hover:shadow-xl transition-shadow border-t-4 border-t-orcid-green">
-              <CardHeader>
-                <div className="bg-accent w-12 h-12 rounded-full flex items-center justify-center mb-4">
-                  <UsersIcon className="h-6 w-6 text-orcid-green" />
-                </div>
-                <CardTitle>Connect Your Research</CardTitle>
-                <CardDescription>
-                  Link your iD to your publications, grants, and affiliations.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p>
-                  ORCID connects you with your research activities, ensuring proper
-                  attribution and reducing administrative burden.
-                </p>
-              </CardContent>
-              <CardFooter>
-                <Link to="/researchers/tools">
-                  <Button variant="link" className="text-orcid-green p-0">
-                    Learn more
+                
+                <Link to="/dashboard" className="w-full sm:w-auto">
+                  <Button variant="outline" className="w-full sm:w-auto border-gray-600 text-gray-600 hover:bg-gray-600 hover:text-white">
+                    <User className="h-4 w-4 mr-2" />
+                    Meu Perfil
                   </Button>
                 </Link>
-              </CardFooter>
-            </Card>
-
-            <Card className="shadow-md hover:shadow-xl transition-shadow border-t-4 border-t-orcid-green">
-              <CardHeader>
-                <div className="bg-accent w-12 h-12 rounded-full flex items-center justify-center mb-4">
-                  <BookIcon className="h-6 w-6 text-orcid-green" />
-                </div>
-                <CardTitle>Increase Visibility</CardTitle>
-                <CardDescription>
-                  Gain recognition for all your research outputs.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p>
-                  Increase the visibility of your entire research portfolio, including
-                  publications, datasets, peer reviews, and more.
-                </p>
-              </CardContent>
-              <CardFooter>
-                <Link to="/researchers">
-                  <Button variant="link" className="text-orcid-green p-0">
-                    Learn more
+                
+                <Link to="/search" className="w-full sm:w-auto">
+                  <Button variant="outline" className="w-full sm:w-auto border-gray-600 text-gray-600 hover:bg-gray-600 hover:text-white">
+                    <Search className="h-4 w-4 mr-2" />
+                    Pesquisar
                   </Button>
                 </Link>
-              </CardFooter>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* Stats Section */}
-      <section className="py-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h2 className="text-3xl font-bold text-gray-900">
-              ORCID by the Numbers
-            </h2>
-          </div>
-
-          <div className="mt-12 grid grid-cols-2 gap-8 md:grid-cols-4">
-            <div className="bg-white p-6 rounded-2xl shadow-md">
-              <p className="text-4xl font-bold text-orcid-green">10M+</p>
-              <p className="mt-2 text-sm font-medium text-gray-600">Registered Users</p>
+              </div>
             </div>
-            <div className="bg-white p-6 rounded-2xl shadow-md">
-              <p className="text-4xl font-bold text-orcid-green">1,300+</p>
-              <p className="mt-2 text-sm font-medium text-gray-600">Member Organizations</p>
-            </div>
-            <div className="bg-white p-6 rounded-2xl shadow-md">
-              <p className="text-4xl font-bold text-orcid-green">130+</p>
-              <p className="mt-2 text-sm font-medium text-gray-600">Countries & Territories</p>
-            </div>
-            <div className="bg-white p-6 rounded-2xl shadow-md">
-              <p className="text-4xl font-bold text-orcid-green">50M+</p>
-              <p className="mt-2 text-sm font-medium text-gray-600">Connected Works</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-16 bg-gradient-to-r from-orcid-green/90 to-orcid-green">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl font-bold text-white">
-            Ready to enhance your research identity?
-          </h2>
-          <p className="mt-4 text-xl text-white/90 max-w-3xl mx-auto">
-            Join millions of researchers worldwide who use ORCID to distinguish themselves and their contributions.
-          </p>
-          <div className="mt-10">
-            <Button 
-              onClick={handleOrcidSignIn}
-              className="bg-white text-orcid-green hover:bg-gray-100 px-8 py-6 text-lg font-semibold"
-            >
-              Sign in with ORCID
-            </Button>
-          </div>
-        </div>
-      </section>
-    </div>
+          </section>
+        )}
+      </div>
+    </Layout>
   );
 };
 
