@@ -37,6 +37,13 @@ class User(AbstractUser):
     profile_picture_url = models.URLField(blank=True)
     website_url = models.URLField(blank=True)
     
+    # Social media accounts
+    social_media_accounts = models.JSONField(
+        default=list, 
+        blank=True,
+        help_text='List of social media accounts: [{"platform": "twitter", "username": "johndoe", "url": "https://twitter.com/johndoe"}]'
+    )
+    
     # Privacy settings
     profile_public = models.BooleanField(default=True)
     show_publications = models.BooleanField(default=True)

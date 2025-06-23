@@ -32,7 +32,7 @@ class UserAdmin(BaseUserAdmin):
             'fields': ('orcid_id', 'orcid_access_token', 'orcid_refresh_token', 'orcid_token_expires_at')
         }),
         ('Profile Information', {
-            'fields': ('display_name', 'biography', 'profile_picture_url', 'website_url')
+            'fields': ('display_name', 'biography', 'profile_picture_url', 'website_url', 'social_media_accounts')
         }),
         ('Privacy Settings', {
             'fields': ('profile_public', 'show_publications', 'show_affiliations', 'show_metrics')

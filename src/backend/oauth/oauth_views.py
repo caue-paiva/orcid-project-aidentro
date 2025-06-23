@@ -1086,4 +1086,297 @@ def get_researcher_papers(request):
                 'Try reducing the limit parameter if timeout occurs',
                 'Check server logs for detailed error information'
             ]
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def add_social_media_account(request):
+    """
+    Add a new social media account to a user with a given ORCID ID
+    
+    POST body (JSON):
+    {
+        "orcid_id": "0000-0000-0000-0000",
+        "platform": "twitter",  // twitter, instagram, youtube, linkedin, facebook, etc.
+        "username": "johndoe",
+        "url": "https://twitter.com/johndoe"  // optional, will be generated if not provided
+    }
+    
+    Returns:
+        JSON response with success status and updated social media accounts
+    """
+    try:
+        # Parse JSON body
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'error': 'Invalid JSON in request body',
+                'example': {
+                    'orcid_id': '0000-0000-0000-0000',
+                    'platform': 'twitter',
+                    'username': 'johndoe',
+                    'url': 'https://twitter.com/johndoe'
+                }
+            }, status=400)
+        
+        # Validate required fields
+        orcid_id = data.get('orcid_id')
+        platform = data.get('platform')
+        username = data.get('username')
+        
+        if not orcid_id:
+            return JsonResponse({
+                'error': 'orcid_id is required'
+            }, status=400)
+        
+        if not platform:
+            return JsonResponse({
+                'error': 'platform is required',
+                'supported_platforms': ['twitter', 'instagram', 'youtube', 'linkedin', 'facebook', 'github', 'researchgate', 'google_scholar']
+            }, status=400)
+        
+        if not username:
+            return JsonResponse({
+                'error': 'username is required'
+            }, status=400)
+        
+        # Validate ORCID ID format
+        if not ORCIDAPIClient.validate_orcid_id_format(orcid_id):
+            return JsonResponse({
+                'error': 'Invalid ORCID ID format',
+                'expected_format': '0000-0000-0000-0000',
+                'received': orcid_id
+            }, status=400)
+        
+        # Find user by ORCID ID, create if not found
+        try:
+            user = User.objects.get(orcid_id=orcid_id)
+            user_created = False
+        except User.DoesNotExist:
+            # Create new user with template data
+            clean_orcid = orcid_id.replace('-', '')
+            template_username = f"user_{clean_orcid[-8:]}"  # Use last 8 digits of ORCID
+            template_email = f"{clean_orcid}@orcid.placeholder"
+            
+            user = User.objects.create_user(
+                username=template_username,
+                email=template_email,
+                orcid_id=orcid_id,
+                display_name=f"ORCID User {orcid_id}",
+                social_media_accounts=[]
+            )
+            user_created = True
+            logger.info(f"Created new user with ORCID ID: {orcid_id}, username: {template_username}")
+        
+        # Generate URL if not provided
+        url = data.get('url')
+        if not url:
+            url = _generate_social_media_url(platform, username)
+        
+        # Validate platform
+        supported_platforms = [
+            'twitter', 'x', 'instagram', 'youtube', 'linkedin', 
+            'facebook', 'github', 'researchgate', 'google_scholar', 
+            'orcid', 'mastodon', 'tiktok', 'snapchat'
+        ]
+        
+        if platform.lower() not in supported_platforms:
+            return JsonResponse({
+                'error': f'Unsupported platform: {platform}',
+                'supported_platforms': supported_platforms
+            }, status=400)
+        
+        # Create new social media account entry
+        new_account = {
+            'platform': platform.lower(),
+            'username': username,
+            'url': url,
+            'added_at': timezone.now().isoformat()
+        }
+        
+        # Get current social media accounts
+        current_accounts = user.social_media_accounts or []
+        
+        # Check if account already exists for this platform
+        existing_account_index = None
+        for i, account in enumerate(current_accounts):
+            if account.get('platform') == platform.lower():
+                existing_account_index = i
+                break
+        
+        if existing_account_index is not None:
+            # Update existing account
+            current_accounts[existing_account_index] = new_account
+            action = 'updated'
+        else:
+            # Add new account
+            current_accounts.append(new_account)
+            action = 'added'
+        
+        # Update user's social media accounts
+        user.social_media_accounts = current_accounts
+        user.save()
+        
+        logger.info(f"Successfully {action} {platform} account for user {user.username} (ORCID: {orcid_id})")
+        
+        return JsonResponse({
+            'success': True,
+            'action': action,
+            'user_created': user_created,
+            'orcid_id': orcid_id,
+            'platform': platform.lower(),
+            'username': username,
+            'url': url,
+            'total_accounts': len(current_accounts),
+            'all_accounts': current_accounts,
+            'user_info': {
+                'username': user.username,
+                'display_name': user.display_name,
+                'email': user.email
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error adding social media account: {str(e)}")
+        return JsonResponse({
+            'error': 'Failed to add social media account',
+            'details': str(e)
+        }, status=500)
+
+
+def _generate_social_media_url(platform: str, username: str) -> str:
+    """
+    Generate social media URL based on platform and username
+    
+    Args:
+        platform: Social media platform name
+        username: Username on the platform
+        
+    Returns:
+        Generated URL for the social media account
+    """
+    platform = platform.lower()
+    
+    url_patterns = {
+        'twitter': f'https://twitter.com/{username}',
+        'x': f'https://x.com/{username}',
+        'instagram': f'https://instagram.com/{username}',
+        'youtube': f'https://youtube.com/@{username}',
+        'linkedin': f'https://linkedin.com/in/{username}',
+        'facebook': f'https://facebook.com/{username}',
+        'github': f'https://github.com/{username}',
+        'researchgate': f'https://researchgate.net/profile/{username}',
+        'google_scholar': f'https://scholar.google.com/citations?user={username}',
+        'orcid': f'https://orcid.org/{username}',
+        'mastodon': f'https://mastodon.social/@{username}',  # Default instance
+        'tiktok': f'https://tiktok.com/@{username}',
+        'snapchat': f'https://snapchat.com/add/{username}'
+    }
+    
+    return url_patterns.get(platform, f'https://{platform}.com/{username}')
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_social_media_accounts(request):
+    """
+    Get social media accounts for a user with a given ORCID ID
+    
+    Query parameters:
+    - orcid_id: ORCID identifier (required)
+    
+    Returns:
+        JSON response with user's social media accounts
+    """
+    try:
+        orcid_id = request.GET.get('orcid_id')
+        
+        if not orcid_id:
+            return JsonResponse({
+                'error': 'orcid_id parameter is required',
+                'example': '/api/get-social-media/?orcid_id=0000-0000-0000-0000'
+            }, status=400)
+        
+        # Validate ORCID ID format
+        if not ORCIDAPIClient.validate_orcid_id_format(orcid_id):
+            return JsonResponse({
+                'error': 'Invalid ORCID ID format',
+                'expected_format': '0000-0000-0000-0000',
+                'received': orcid_id
+            }, status=400)
+        
+        # Find user by ORCID ID
+        try:
+            user = User.objects.get(orcid_id=orcid_id)
+        except User.DoesNotExist:
+            return JsonResponse({
+                'error': 'User not found with the provided ORCID ID',
+                'orcid_id': orcid_id,
+                'suggestion': 'User may not have been created yet. Try adding a social media account first.'
+            }, status=404)
+        
+        # Get social media accounts
+        social_media_accounts = user.social_media_accounts or []
+        
+        # Sort accounts by platform name for consistent ordering
+        social_media_accounts.sort(key=lambda x: x.get('platform', ''))
+        
+        # Build response with user info and social media accounts
+        response_data = {
+            'success': True,
+            'orcid_id': orcid_id,
+            'user_info': {
+                'username': user.username,
+                'display_name': user.display_name,
+                'email': user.email,
+                'profile_public': user.profile_public,
+                'created_at': user.created_at.isoformat() if user.created_at else None,
+                'last_orcid_sync': user.last_orcid_sync.isoformat() if user.last_orcid_sync else None
+            },
+            'social_media_accounts': social_media_accounts,
+            'total_accounts': len(social_media_accounts),
+            'platforms': [account.get('platform') for account in social_media_accounts]
+        }
+        
+        # Add statistics about social media presence
+        if social_media_accounts:
+            platform_counts = {}
+            for account in social_media_accounts:
+                platform = account.get('platform', 'unknown')
+                platform_counts[platform] = platform_counts.get(platform, 0) + 1
+            
+            response_data['statistics'] = {
+                'most_recent_addition': max(
+                    social_media_accounts, 
+                    key=lambda x: x.get('added_at', '1970-01-01')
+                ).get('added_at') if social_media_accounts else None,
+                'platform_distribution': platform_counts,
+                'has_professional_accounts': any(
+                    account.get('platform') in ['linkedin', 'researchgate', 'google_scholar', 'github']
+                    for account in social_media_accounts
+                ),
+                'has_social_accounts': any(
+                    account.get('platform') in ['twitter', 'x', 'instagram', 'facebook', 'youtube']
+                    for account in social_media_accounts
+                )
+            }
+        else:
+            response_data['statistics'] = {
+                'most_recent_addition': None,
+                'platform_distribution': {},
+                'has_professional_accounts': False,
+                'has_social_accounts': False
+            }
+        
+        logger.info(f"Successfully retrieved {len(social_media_accounts)} social media accounts for ORCID ID: {orcid_id}")
+        
+        return JsonResponse(response_data)
+        
+    except Exception as e:
+        logger.error(f"Error getting social media accounts: {str(e)}")
+        return JsonResponse({
+            'error': 'Failed to retrieve social media accounts',
+            'details': str(e)
         }, status=500) 

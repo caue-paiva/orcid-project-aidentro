@@ -475,4 +475,113 @@ export const getResearcherPapers = async (orcidId: string, limit: number = 50): 
     console.error('❌ Error fetching researcher papers:', error);
     throw error;
   }
+};
+
+// Social media accounts API
+export interface SocialMediaAccount {
+  platform: string;
+  username: string;
+  url: string;
+}
+
+export interface SocialMediaResponse {
+  success: boolean;
+  orcid_id: string;
+  social_media_accounts: SocialMediaAccount[];
+  total_accounts: number;
+  user_info: {
+    username: string;
+    display_name: string;
+    email: string;
+  };
+  error?: string;
+}
+
+export const getSocialMediaAccounts = async (orcidId: string): Promise<SocialMediaResponse> => {
+  try {
+    const queryParams = new URLSearchParams({
+      orcid_id: orcidId,
+    });
+
+    console.log('📱 Fetching social media accounts for ORCID ID:', orcidId);
+    
+    const response = await fetch(`${BACKEND_URL}/api/get-social-media/?${queryParams}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('✅ Social media accounts received:', data);
+    
+    return data;
+  } catch (error) {
+    console.error('❌ Error fetching social media accounts:', error);
+    throw error;
+  }
+};
+
+export interface AddSocialMediaRequest {
+  orcid_id: string;
+  platform: string;
+  username: string;
+  url?: string;
+}
+
+export interface AddSocialMediaResponse {
+  success: boolean;
+  action: 'added' | 'updated';
+  user_created: boolean;
+  orcid_id: string;
+  platform: string;
+  username: string;
+  url: string;
+  total_accounts: number;
+  all_accounts: SocialMediaAccount[];
+  user_info: {
+    username: string;
+    display_name: string;
+    email: string;
+  };
+  error?: string;
+}
+
+export const addSocialMediaAccount = async (orcidId: string, platform: string, username: string): Promise<AddSocialMediaResponse> => {
+  try {
+    const requestData: AddSocialMediaRequest = {
+      orcid_id: orcidId,
+      platform: platform,
+      username: username,
+    };
+
+    console.log('➕ Adding social media account:', requestData);
+    
+    const response = await fetch(`${BACKEND_URL}/api/add-social-media/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(requestData),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('✅ Social media account added:', data);
+    
+    return data;
+  } catch (error) {
+    console.error('❌ Error adding social media account:', error);
+    throw error;
+  }
 }; 

@@ -5,12 +5,14 @@ import MetricsCard from "@/components/dashboard/MetricsCard";
 import ProfileCompletion from "@/components/dashboard/ProfileCompletion";
 import RecentPublications from "@/components/dashboard/RecentPublications";
 import CitationChart from "@/components/dashboard/CitationChart";
+import SocialMediaCard from "@/components/dashboard/SocialMediaCard";
+import AddSocialMediaModal from "@/components/dashboard/AddSocialMediaModal";
 import UserProfile from "@/components/UserProfile";
 import UserInfoModal from "@/components/UserInfoModal";
-import { getCurrentUserIdentity, getUserIdentity, UserIdentity, getCitationMetrics, getResearcherPapers, ResearcherPapersResponse } from "@/api/orcidApi";
+import { getCurrentUserIdentity, getUserIdentity, UserIdentity, getCitationMetrics, getResearcherPapers, ResearcherPapersResponse, getSocialMediaAccounts, SocialMediaResponse, addSocialMediaAccount } from "@/api/orcidApi";
 import { getStoredOrcidId, isOrcidAuthenticated, clearOrcidAuth } from "@/utils/orcidAuth";
 import { CitationMetrics } from "@/types";
-import { Book, FilePlus, Users, Award, BookUser, Lightbulb, User, RefreshCw } from "lucide-react";
+import { Book, FilePlus, Users, Award, BookUser, Lightbulb, User, RefreshCw, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 
 // Demo ORCID ID for fallback data
@@ -40,6 +42,19 @@ const Dashboard = () => {
   const [demoPapers, setDemoPapers] = useState<ResearcherPapersResponse | null>(null);
   const [loadingDemoPapers, setLoadingDemoPapers] = useState(false);
 
+  // Social media state
+  const [socialMedia, setSocialMedia] = useState<SocialMediaResponse | null>(null);
+  const [loadingSocialMedia, setLoadingSocialMedia] = useState(false);
+  const [socialMediaError, setSocialMediaError] = useState<string | null>(null);
+  
+  // Demo social media state
+  const [demoSocialMedia, setDemoSocialMedia] = useState<SocialMediaResponse | null>(null);
+  const [loadingDemoSocialMedia, setLoadingDemoSocialMedia] = useState(false);
+
+  // Modal states
+  const [showAddSocialMediaModal, setShowAddSocialMediaModal] = useState(false);
+  const [addingSocialMedia, setAddingSocialMedia] = useState(false);
+
   // Fetch current user's ORCID identity
   useEffect(() => {
     const fetchUserIdentity = async () => {
@@ -58,16 +73,18 @@ const Dashboard = () => {
           identity.authenticated = true; // Mark as authenticated since we have stored credentials
           setUserIdentity(identity);
           
-          // Auto-fetch citation data and papers for authenticated users
+          // Auto-fetch citation data, papers, and social media for authenticated users
           fetchCitationData(storedOrcidId);
           fetchPapers(storedOrcidId);
+          fetchSocialMedia(storedOrcidId);
         } else {
           console.log('No stored ORCID ID found, loading demo data');
           setUserIdentity(null);
           
-          // Fetch demo citation data and papers for non-authenticated users
+          // Fetch demo citation data, papers, and social media for non-authenticated users
           fetchDemoCitationData();
           fetchDemoPapers();
+          fetchDemoSocialMedia();
         }
       } catch (error) {
         console.error("Failed to fetch user identity:", error);
@@ -77,6 +94,7 @@ const Dashboard = () => {
         // Still try to load demo data
         fetchDemoCitationData();
         fetchDemoPapers();
+        fetchDemoSocialMedia();
       } finally {
         setLoadingUser(false);
       }
@@ -171,16 +189,62 @@ const Dashboard = () => {
     }
   };
 
+  // Fetch social media for authenticated user
+  const fetchSocialMedia = async (orcidId?: string) => {
+    try {
+      setLoadingSocialMedia(true);
+      setSocialMediaError(null);
+      
+      const targetOrcidId = orcidId || getStoredOrcidId();
+      if (!targetOrcidId) {
+        throw new Error("No ORCID ID available for fetching social media");
+      }
+      
+      console.log("📱 Fetching social media for:", targetOrcidId);
+      const socialMediaData = await getSocialMediaAccounts(targetOrcidId);
+      console.log("✅ Social media received:", socialMediaData);
+      
+      setSocialMedia(socialMediaData);
+    } catch (error) {
+      console.error("❌ Error fetching social media:", error);
+      setSocialMediaError(error instanceof Error ? error.message : 'Failed to fetch social media');
+    } finally {
+      setLoadingSocialMedia(false);
+    }
+  };
+
+  // Fetch demo social media from the demo ORCID ID
+  const fetchDemoSocialMedia = async () => {
+    try {
+      setLoadingDemoSocialMedia(true);
+      
+      console.log("📱 Fetching demo social media for:", DEMO_ORCID_ID);
+      const socialMediaData = await getSocialMediaAccounts(DEMO_ORCID_ID);
+      console.log("✅ Demo social media received:", socialMediaData);
+      
+      setDemoSocialMedia(socialMediaData);
+    } catch (error) {
+      console.error("❌ Error fetching demo social media:", error);
+      // On error, we'll just show empty data
+      setDemoSocialMedia(null);
+    } finally {
+      setLoadingDemoSocialMedia(false);
+    }
+  };
+
   // Determine display name and authentication status
   const isAuthenticated = userIdentity?.authenticated || false;
   const displayName = isAuthenticated ? userIdentity.name : 'Guest';
 
-  // Get the appropriate citation metrics and papers to display
+  // Get the appropriate citation metrics, papers, and social media to display
   const displayMetrics = isAuthenticated ? citationMetrics : demoCitationMetrics;
   const isLoadingMetrics = isAuthenticated ? loadingCitations : loadingDemoData;
   
   const displayPapers = isAuthenticated ? papers : demoPapers;
   const isLoadingPapersDisplay = isAuthenticated ? loadingPapers : loadingDemoPapers;
+  
+  const displaySocialMedia = isAuthenticated ? socialMedia : demoSocialMedia;
+  const isLoadingSocialMediaDisplay = isAuthenticated ? loadingSocialMedia : loadingDemoSocialMedia;
 
   // Logout function
   const handleLogout = () => {
@@ -189,9 +253,12 @@ const Dashboard = () => {
     setCitationMetrics(null);
     setPapers(null);
     setPapersError(null);
+    setSocialMedia(null);
+    setSocialMediaError(null);
     // Load demo data again
     fetchDemoCitationData();
     fetchDemoPapers();
+    fetchDemoSocialMedia();
     // Optionally redirect or refresh
     window.location.reload();
   };
@@ -215,15 +282,48 @@ const Dashboard = () => {
     }
   };
 
-  // Function to refresh citation data and papers
+  // Function to refresh citation data, papers, and social media
   const handleRefreshCitations = () => {
     const storedOrcidId = getStoredOrcidId();
     if (storedOrcidId) {
       fetchCitationData(storedOrcidId);
       fetchPapers(storedOrcidId);
+      fetchSocialMedia(storedOrcidId);
     } else {
       fetchDemoCitationData();
       fetchDemoPapers();
+      fetchDemoSocialMedia();
+    }
+  };
+
+  // Handle adding social media account
+  const handleAddSocialMedia = () => {
+    setShowAddSocialMediaModal(true);
+  };
+
+  // Handle submitting new social media account
+  const handleSubmitSocialMedia = async (platform: string, username: string) => {
+    const storedOrcidId = getStoredOrcidId();
+    const targetOrcidId = storedOrcidId || DEMO_ORCID_ID;
+    const isAuthenticatedUser = !!storedOrcidId;
+
+    setAddingSocialMedia(true);
+    try {
+      await addSocialMediaAccount(targetOrcidId, platform, username);
+      
+      // Refresh social media data to show the new account
+      if (isAuthenticatedUser) {
+        await fetchSocialMedia(targetOrcidId);
+      } else {
+        await fetchDemoSocialMedia();
+      }
+      
+      console.log(`✅ Social media account added successfully for ${isAuthenticatedUser ? 'authenticated user' : 'demo user'}`);
+    } catch (error) {
+      console.error("❌ Error adding social media account:", error);
+      throw error; // Re-throw to let the modal handle the error display
+    } finally {
+      setAddingSocialMedia(false);
     }
   };
 
@@ -436,6 +536,17 @@ const Dashboard = () => {
                 onboardingStep: 0
               }} />
             )}
+
+            {/* Social Media Card */}
+            <SocialMediaCard
+              socialMediaAccounts={displaySocialMedia?.social_media_accounts || []}
+              isLoading={isLoadingSocialMediaDisplay}
+              error={isAuthenticated ? (socialMediaError || undefined) : undefined}
+              isAuthenticated={isAuthenticated}
+              onAddAccount={handleAddSocialMedia}
+            />
+
+
             
             {/* Suggested Actions */}
             <div className="bg-gray-50 rounded-xl p-4">
@@ -517,6 +628,13 @@ const Dashboard = () => {
           </div>
         )}
 
+        {/* Add Social Media Modal */}
+        <AddSocialMediaModal
+          isOpen={showAddSocialMediaModal}
+          onClose={() => setShowAddSocialMediaModal(false)}
+          onSubmit={handleSubmitSocialMedia}
+          isLoading={addingSocialMedia}
+        />
 
       </div>
     </Layout>
