@@ -1,4 +1,5 @@
-
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,7 @@ import {
 import { isOrcidAuthenticated, getStoredOrcidId } from "@/utils/orcidAuth";
 import { getUserIdentity, UserIdentity, initiateOrcidAuth } from "@/api/orcidApi";
 import { toast } from "sonner";
+import Layout from "@/components/layout/Layout";
 
 const Home = () => {
   const navigate = useNavigate();
@@ -55,11 +57,10 @@ const Home = () => {
     initiateOrcidAuth('/authenticate');
   };
 
-  return (
-    <div>
-      {/* Hero Section */}
-      <section className="bg-gradient-to-b from-white to-gray-50 py-16 md:py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orcid-green mx-auto"></div>
             <p className="mt-4 text-gray-600">Carregando...</p>
@@ -68,8 +69,6 @@ const Home = () => {
       </Layout>
     );
   }
-
-  // Show content for both authenticated and non-authenticated users
 
   return (
     <Layout>
